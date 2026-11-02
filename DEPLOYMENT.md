@@ -28,10 +28,27 @@ None. The server has no account-specific settings.
 
 ## Local Development
 
-Install:
+### Install from GitHub (users)
 
 ```bash
-cd kiro-migration-assistant
+npx -y github:irshadc/kiro-migration-assist install
+```
+
+This adds the entry below to `~/.kiro/settings/mcp.json` (the old file is kept as `mcp.json.kma-backup-<ts>`) and copies the skill to `~/.kiro/skills/kiro-migration-assistant/`. Re-running changes nothing.
+
+```json
+{
+  "mcpServers": {
+    "kiro-migration-assistant": { "command": "npx", "args": ["-y", "github:irshadc/kiro-migration-assist"] }
+  }
+}
+```
+
+### Install from a clone (development)
+
+```bash
+git clone https://github.com/irshadc/kiro-migration-assist.git
+cd kiro-migration-assist
 npm ci
 ```
 
@@ -62,7 +79,14 @@ kiro-cli chat --v3
 > Use the kiro-migration-assistant skill to scan what I can migrate.
 ```
 
-Verify: the agent calls `scan_sources` and reports counts per source. Running the server by hand (`node src/server.js`) waits silently on stdin; that is expected for a stdio MCP server.
+Verify: the agent calls `scan_sources` and reports counts per source. Running the server by hand (`node src/cli.js`) waits silently on stdin; that is expected for a stdio MCP server.
+
+Run a tool without an MCP client:
+
+```bash
+node src/cli.js tools                                   # names + descriptions
+node src/cli.js call scan_sources '{"workspace":"'"$PWD"'"}'
+```
 
 ## Data Setup
 
@@ -70,15 +94,17 @@ No seed data. Tests build their own fixture home under the OS temp dir (`test/he
 
 ## Deploy
 
-Nothing to deploy to AWS. To publish:
+Nothing to deploy to AWS. Publishing is pushing to GitHub; users install with `npx -y github:irshadc/kiro-migration-assist`, which installs the dependencies from `package.json`.
 
 ```bash
 npm test
-npm publish --access public   # optional; then the mcp.json entry can use "command": "npx", "args": ["-y", "kiro-migration-assistant"]
+git push origin main
 ```
+
+To publish on npm as well (optional): `npm publish --access public`, then the `mcp.json` entry can use `"args": ["-y", "kiro-migration-assistant"]`.
 
 ## Monitoring & Verification
 
-- `npm test`: unit tests plus an MCP protocol test that spawns the server over stdio.
+- `npm test`: unit tests, CLI tests (install, `call`) and an MCP protocol test that spawns the server over stdio.
 - `npm run test:e2e`: imports a fixture Claude Code session into the real `~/.kiro`, resumes it with `kiro-cli chat --v3 --resume-id`, checks the model recalls it, then runs a Kiro agent that uses the skill and server. The test removes the sessions it wrote.
 - Kiro's MCP status (`/mcp` in kiro-cli) shows whether the server started.

@@ -13,6 +13,8 @@ const workspace = z.string().optional()
   .describe('Absolute project path. Adds workspace-scoped config (written to <workspace>/.kiro).');
 const maxChars = z.number().int().min(10_000).max(4_000_000).optional()
   .describe(`Character budget per imported session; older turns beyond it are dropped. Default ${DEFAULT_MAX_CHARS}.`);
+const fallbackCwd = z.string().optional()
+  .describe('Absolute folder to file a session under when the source recorded none (some Cursor Agent chats). Pass the current project path: Kiro lists sessions per folder, and a session with no folder is resumable only by id.');
 
 const asResult = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] });
 
@@ -73,12 +75,13 @@ export const TOOLS = [
   }, (roots, args) => listAllSessions(roots, args)],
   ['import_sessions', {
     title: 'Import sessions into Kiro',
-    description: 'Copy sessions into the Kiro V3 session store so they appear in `kiro-cli chat --v3 --resume-picker` and can be resumed with --resume-id. Pass ids, or all=true for the newest `limit` sessions. dryRun defaults to true. Re-importing updates the same Kiro session; a session already continued in Kiro is kept unless fork=true.',
+    description: 'Copy sessions into the Kiro V3 session store so they appear in `kiro-cli chat --v3 --list-sessions` / `--resume-picker` in their folder and can be resumed with --resume-id. Pass source + ids, or all=true for the newest `limit` sessions (from `source`, or across every source when source is omitted). dryRun defaults to true. Re-importing updates the same Kiro session; a session already continued in Kiro is kept unless fork=true.',
     inputSchema: {
-      source: sessionSourceName,
+      source: sessionSourceName.optional(),
       ids: z.array(z.string()).optional(),
       all: z.boolean().default(false),
       cwd: z.string().optional().describe('With all=true: only sessions from this directory.'),
+      fallbackCwd,
       limit: z.number().int().min(1).max(500).default(20),
       maxChars,
       fork: z.boolean().default(false),
@@ -93,6 +96,7 @@ export const TOOLS = [
       source: sessionSourceName,
       sessionId: z.string().optional(),
       cwd: z.string().optional(),
+      fallbackCwd,
       maxChars,
       fork: z.boolean().default(false),
     },

@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveRoots } from '../../src/roots.js';
 import { bucketFor } from '../../src/sessions/kiro-v3-writer.js';
-import { importSession } from '../../src/sessions/import-sessions.js';
+import { importSession, importSessions } from '../../src/sessions/import-sessions.js';
 import { makeFixture } from '../helpers/fixtures.js';
 
 const ENABLED = process.env.KMA_E2E === '1';
@@ -67,4 +67,36 @@ test('a Kiro agent uses the skill + MCP server to hand off a session', { skip: !
   const imported = fs.readdirSync(expected).filter((d) => d.startsWith('sess_')).map((d) => path.join(expected, d, 'messages.jsonl'))
     .filter((f) => fs.existsSync(f) && fs.readFileSync(f, 'utf-8').includes('Migrated from Claude Code session claude-s1'));
   assert.equal(imported.length, 1, 'the agent imported the fixture session through the MCP tool');
+});
+
+test('imported sessions (including folder-less ones) show in kiro-cli --list-sessions', { skip: !ENABLED, timeout: TIMEOUT_MS }, async (t) => {
+  const { fx, roots } = fixtureWithRealKiro();
+  t.after(() => { removeBucket(fx.ws); fx.cleanup(); });
+  const results = await importSessions(roots, { all: true, limit: 5, fallbackCwd: fx.ws });
+  assert.ok(results.every((r) => r.status === 'created'), JSON.stringify(results));
+  assert.ok(results.some((r) => r.source === 'cursor-agent' && r.id === 'c1'), 'includes the folder-less Cursor Agent chat');
+  const out = execFileSync('kiro-cli', ['chat', '--v3', '--list-sessions', '--format', 'json'], { cwd: fx.ws, encoding: 'utf-8', timeout: TIMEOUT_MS });
+  const listed = new Set(JSON.parse(out).flatMap((e) => e.sessions.map((s) => s.sessionId)));
+  for (const r of results) assert.ok(listed.has(r.kiroSessionId), `${r.source}/${r.id} listed`);
+});
+
+test('a Kiro agent runs the full-migration workflow from the README prompt', { skip: !ENABLED, timeout: TIMEOUT_MS * 2 }, async (t) => {
+  // Config and sessions go to a fixture Kiro dir here; only kiro-cli's own chat session lands in the real ~/.kiro.
+  const fx = makeFixture();
+  t.after(() => { removeBucket(fx.ws); fx.cleanup(); });
+  const fixtureKiro = path.join(fx.home, '.kiro');
+  const kiroWs = path.join(fx.ws, '.kiro');
+  fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
+  fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
+    'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')],
+      env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
+  } }));
+  fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
+  kiro(fx.ws, ['Use the kiro-migration-assistant skill and follow its full migration workflow for this project: '
+    + 'migrate everything from Claude Code, Cursor and Codex plus my 5 most recent sessions. '
+    + 'I approve both plans in advance; do not overwrite any conflicts. Reply with a short summary.']);
+  assert.ok(fs.existsSync(path.join(fixtureKiro, 'agents', 'reviewer.md')), 'agent migrated');
+  assert.ok(fs.existsSync(path.join(fixtureKiro, 'settings', 'mcp.json')), 'MCP servers migrated');
+  const bucket = path.join(fixtureKiro, 'sessions', bucketFor(fx.ws));
+  assert.equal(fs.readdirSync(bucket).filter((d) => d.startsWith('sess_')).length, 5, '5 sessions imported under the project folder');
 });

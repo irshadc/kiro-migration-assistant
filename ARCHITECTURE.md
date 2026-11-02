@@ -32,7 +32,7 @@
 
 | Tier | Layer | Components | Purpose |
 |------|-------|------------|---------|
-| 1 | Interface | `src/server.js`, `src/tools.js`, `skills/kiro-migration-assistant/SKILL.md` | MCP tools with zod-validated input; skill that drives them |
+| 1 | Interface | `src/cli.js`, `src/install.js`, `src/server.js`, `src/tools.js`, `skills/kiro-migration-assistant/SKILL.md` | MCP tools with zod-validated input; skill that drives them |
 | 2 | Business | `src/config/*`, `src/sessions/*` | Conversion, planning, conflict policy, session rewriting |
 | 3 | Data | `src/sources/*`, `src/common/*` | Reading each tool's files and SQLite stores, atomic writes |
 
@@ -40,8 +40,10 @@
 
 | Name | File | Runtime | Purpose | Trigger |
 |------|------|---------|---------|---------|
-| MCP server | `src/server.js` | Node ≥ 22.13 | stdio transport, registers tools | Kiro starts it from `mcp.json` |
-| Tool layer | `src/tools.js` | Node | Schemas, error envelope, no logic | MCP `tools/call` |
+| CLI entry | `src/cli.js` | Node ≥ 22.13 | npm bin: no args = MCP server; `install`, `tools`, `call <tool> <json>` | `npx`, Kiro `mcp.json` |
+| Installer | `src/install.js` | Node | Adds the server to `~/.kiro/settings/mcp.json` (backup), copies the skill | `install` |
+| MCP server | `src/server.js` | Node ≥ 22.13 | stdio transport, registers tools | CLI with no args; `node src/server.js` |
+| Tool layer | `src/tools.js` | Node | Schemas, error envelope, no logic | MCP `tools/call`, CLI `call` |
 | Config use case | `src/config/migrate-config.js` | Node | Discover, plan, apply, backup | `migrate_config`, `scan_sources` |
 | Converters | `src/config/converters.js` | Node | Skill, command, agent, MCP, rule conversion (pure) | planner |
 | Hook converter | `src/config/hooks.js` | Node | Claude/Cursor hooks → Kiro v1 hook file | planner |
@@ -59,13 +61,14 @@
 ```
 kiro-migration-assistant/
 ├── src/
+│   ├── cli.js, install.js              # npm bin: server, install, one-shot tool calls
 │   ├── server.js, tools.js, roots.js   # interface + path resolution
 │   ├── common/                         # files, front matter, sqlite helpers
 │   ├── config/                         # config discovery, converters, planner
 │   ├── sessions/                       # transcript model, V3 writer, import/handoff
 │   └── sources/                        # claude-code/, cursor/, codex/, index.js registry
 ├── skills/kiro-migration-assistant/    # Kiro skill (SKILL.md)
-├── test/                               # node:test unit + MCP protocol tests
+├── test/                               # node:test unit, CLI + MCP protocol tests
 │   ├── helpers/fixtures.js             # generated fake home (incl. SQLite DBs)
 │   └── e2e/                            # opt-in tests against real kiro-cli
 └── progress.md                         # build checklist and verified facts
@@ -151,5 +154,7 @@ These formats were read from the kiro-cli 2.26.1 agent engine and checked by the
 - Large JSONL files are streamed line by line; listing parses only the newest `limit` sessions and only their first lines.
 - SQLite is opened read-only through `node:sqlite`, so there is no native build and Cursor's databases are never modified.
 - Malformed JSONL lines (for example a live writer mid-line) are skipped; malformed JSON config files raise an error that names the file.
+- Sessions with no recorded folder go to the `_global` bucket unless `fallbackCwd` is given; Kiro lists sessions per folder, so `_global` ones are resumable only by id.
+- Corrupt Cursor composer records are left out of listings and fail per item with a named error.
 - Tool inputs are truncated to 600 chars and outputs to 1500 chars per call in imported transcripts.
 - Names from disk are sanitized to `[a-z0-9_-]`, so no target path can escape the Kiro directories.

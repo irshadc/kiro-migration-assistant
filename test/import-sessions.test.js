@@ -85,6 +85,36 @@ test('store sessions without a cwd go to the _global bucket', async (t) => {
   assert.equal(res.resumeCommand, `kiro-cli chat --v3 --resume-id ${res.kiroSessionId}`);
 });
 
+test('fallbackCwd files a folder-less session under that folder so Kiro lists it', async (t) => {
+  const fx = makeFixture();
+  t.after(fx.cleanup);
+  const res = await importSession(fx.roots, { source: 'cursor-agent', id: 'c1', fallbackCwd: fx.ws });
+  assert.equal(res.cwd, fx.ws);
+  assert.ok(fs.existsSync(path.join(fx.roots.kiro.dir, 'sessions', bucketFor(fx.ws), res.kiroSessionId, 'session.json')));
+  assert.ok(!fs.existsSync(path.join(fx.roots.kiro.dir, 'sessions', '_global')));
+  const own = await importSession(fx.roots, { source: 'codex', id: 'cdx1', fallbackCwd: '/somewhere/else' });
+  assert.equal(own.cwd, fx.ws, 'a recorded cwd wins over the fallback');
+});
+
+test('all=true without a source imports the newest sessions across every source', async (t) => {
+  const fx = makeFixture();
+  t.after(fx.cleanup);
+  const results = await importSessions(fx.roots, { all: true, limit: 5, fallbackCwd: fx.ws });
+  assert.equal(results.length, 5);
+  assert.ok(new Set(results.map((r) => r.source)).size >= 3, 'mixes sources');
+  assert.ok(results.every((r) => r.status === 'created'), JSON.stringify(results));
+  assert.ok(!fs.existsSync(path.join(fx.roots.kiro.dir, 'sessions', '_global')));
+  await assert.rejects(importSessions(fx.roots, { ids: ['claude-s1'] }), /source is required/);
+});
+
+test('a corrupt Cursor chat is not listed and reads with a clear error', async (t) => {
+  const fx = makeFixture();
+  t.after(fx.cleanup);
+  const { sessions } = await listAllSessions(fx.roots, { limit: 50 });
+  assert.ok(!sessions.some((s) => s.id === 'broken'));
+  await assert.rejects(importSession(fx.roots, { source: 'cursor', id: 'broken' }), /Cursor chat broken is corrupt/);
+});
+
 test('batch import: all=true takes newest sessions, errors are per item', async (t) => {
   const fx = makeFixture();
   t.after(fx.cleanup);

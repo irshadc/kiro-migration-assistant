@@ -30,3 +30,17 @@ config and sessions into Kiro (V3 session store only).
 - [x] Unit tests (node:test) + MCP protocol test
 - [x] E2E: kiro-cli --v3 resumes an imported Claude fixture session
 - [x] README / ARCHITECTURE / DEPLOYMENT / LICENSE, git init
+
+## v0.2.0 — publishable via GitHub
+- [x] Verified with real kiro-cli: imported sessions appear in `--list-sessions` per folder; `_global` (no-cwd) sessions are resumable by id but never listed; `--all-cwds` lists V2 only (kiro-cli limit)
+- [x] `fallbackCwd` on import/handoff so folder-less sessions land in the project folder
+- [x] Corrupt Cursor composer rows skipped in listing; named per-item error on read
+- [x] `import_sessions` all=true without `source` = newest N across every source
+- [x] CLI `src/cli.js`: MCP server (no args), `install`, `tools`, `call <tool> <json>`
+- [x] `install` registers `npx -y github:irshadc/kiro-migration-assist` in `~/.kiro/settings/mcp.json` (backup) + copies skill
+- [x] Skill: Step 0 bootstrap (install + shell `call` in the same session), full-migration workflow
+- [x] README copy-paste full-migration prompt + templates (by id, latest, recent N, per project, preview, fork)
+- [x] Tests: 51 unit/CLI/protocol; 4 e2e (resume, handoff via skill, list visibility, full migration via skill)
+- [x] npx from packed tarball: `install` and stdio `tools/list` verified
+- [ ] Push to github.com/irshadc/kiro-migration-assist (user)
+- [ ] After push: run the README prompt on a machine with real Claude/Cursor/Codex data

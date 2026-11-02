@@ -45,7 +45,7 @@ const LIST_SQL = `
          CASE WHEN json_valid(CAST(value AS TEXT)) THEN json_extract(CAST(value AS TEXT), '$.name') END AS name,
          CASE WHEN json_valid(CAST(value AS TEXT)) THEN json_extract(CAST(value AS TEXT), '$.createdAt') END AS createdAt,
          CASE WHEN json_valid(CAST(value AS TEXT)) THEN json_extract(CAST(value AS TEXT), '$.lastUpdatedAt') END AS updatedAt
-  FROM cursorDiskKV WHERE key LIKE 'composerData:%'`;
+  FROM cursorDiskKV WHERE key LIKE 'composerData:%' AND json_valid(CAST(value AS TEXT))`;
 
 export async function listSessions(roots, { cwd, limit = 50 } = {}) {
   const dbFile = globalDbPath(roots);
@@ -94,7 +94,10 @@ export async function readSession(roots, id) {
   const { composer, bubbles } = withReadOnlyDb(dbFile, (db) => {
     const row = db.prepare('SELECT value FROM cursorDiskKV WHERE key = ?').get(`composerData:${id}`);
     if (!row) return { composer: null, bubbles: [] };
-    const data = JSON.parse(asText(row.value));
+    let data;
+    try { data = JSON.parse(asText(row.value)); } catch {
+      throw new Error(`Cursor chat ${id} is corrupt: its composer record is not valid JSON`);
+    }
     if (Array.isArray(data.conversation) && data.conversation.length) return { composer: data, bubbles: data.conversation };
     const rows = db.prepare('SELECT key, value FROM cursorDiskKV WHERE key LIKE ?').all(`bubbleId:${id}:%`);
     const byId = new Map();

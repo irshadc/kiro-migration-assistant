@@ -1,10 +1,10 @@
 {
   "name": "kiro-migration-assistant",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server and Kiro skill that migrates Claude Code, Cursor and Codex skills, agents, MCP servers, hooks, rules and sessions into Kiro (V3 sessions).",
   "type": "module",
   "bin": {
-    "kiro-migration-assistant": "src/server.js"
+    "kiro-migration-assistant": "src/cli.js"
   },
   "files": [
     "src/",
@@ -13,7 +13,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node src/cli.js",
     "test": "node --test test/*.test.js",
     "test:e2e": "KMA_E2E=1 node --test test/e2e/*.test.js"
   },
@@ -33,5 +33,14 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "4.6.7"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/irshadc/kiro-migration-assist.git"
+  },
+  "homepage": "https://github.com/irshadc/kiro-migration-assist#readme",
+  "bugs": {
+    "url": "https://github.com/irshadc/kiro-migration-assist/issues"
+  },
+  "author": "Irshad Chohan"
 }

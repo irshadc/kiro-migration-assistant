@@ -46,10 +46,10 @@ export function prepareTurns({ meta, messages }, { label, maxChars }) {
  * already continued that session in Kiro: then it is kept as is, or `fork`
  * writes a fresh copy under a new id.
  */
-export async function importSession(roots, { source, id, cwd, maxChars = DEFAULT_MAX_CHARS, fork = false, dryRun = false, now = Date.now() }) {
+export async function importSession(roots, { source, id, cwd, fallbackCwd, maxChars = DEFAULT_MAX_CHARS, fork = false, dryRun = false, now = Date.now() }) {
   const src = sessionSource(source);
   const session = await src.readSession(roots, id);
-  const targetCwd = cwd || session.meta.cwd || null;
+  const targetCwd = cwd || session.meta.cwd || fallbackCwd || null;
   const { turns, omitted } = prepareTurns(session, { label: src.label, maxChars });
   if (!turns.length) return { source, id, status: 'empty', message: 'session has no user or assistant text to import' };
 
@@ -77,15 +77,26 @@ export async function importSession(roots, { source, id, cwd, maxChars = DEFAULT
   return result;
 }
 
-/** Import many: explicit ids, or the newest `limit` sessions (optionally per cwd). */
-export async function importSessions(roots, { source, ids, all = false, cwd, limit = 20, maxChars, fork, dryRun }) {
-  let targets = ids || [];
-  if (all) targets = (await sessionSource(source).listSessions(roots, { cwd, limit })).map((s) => s.id);
-  if (!targets.length) throw new Error('nothing to import: pass ids, or all=true');
+/**
+ * Import many: explicit ids from one source, or with all=true the newest
+ * `limit` sessions (from `source`, or across every source when it is omitted).
+ */
+export async function importSessions(roots, { source, ids, all = false, cwd, fallbackCwd, limit = 20, maxChars, fork, dryRun }) {
+  let targets;
+  if (all) {
+    const listed = source
+      ? await sessionSource(source).listSessions(roots, { cwd, limit })
+      : (await listAllSessions(roots, { cwd, limit })).sessions;
+    targets = listed.map((s) => ({ source: s.source, id: s.id }));
+  } else {
+    if (ids?.length && !source) throw new Error('source is required when importing by ids');
+    targets = (ids || []).map((id) => ({ source, id }));
+  }
+  if (!targets.length) throw new Error('nothing to import: pass source + ids, or all=true');
   const results = [];
-  for (const id of targets) {
-    try { results.push(await importSession(roots, { source, id, maxChars, fork, dryRun })); } catch (err) {
-      results.push({ source, id, status: 'error', message: err.message });
+  for (const t of targets) {
+    try { results.push(await importSession(roots, { ...t, fallbackCwd, maxChars, fork, dryRun })); } catch (err) {
+      results.push({ ...t, status: 'error', message: err.message });
     }
   }
   return results;
@@ -95,12 +106,12 @@ export async function importSessions(roots, { source, ids, all = false, cwd, lim
  * Live handoff: import (or refresh) the given session, or the most recently
  * active one for `cwd`, and return the command that resumes it in Kiro.
  */
-export async function handoffSession(roots, { source, id, cwd, maxChars, fork }) {
+export async function handoffSession(roots, { source, id, cwd, fallbackCwd, maxChars, fork }) {
   let sessionId = id;
   if (!sessionId) {
     const [latest] = await sessionSource(source).listSessions(roots, { cwd, limit: 1 });
     if (!latest) throw new Error(`no ${source} session found${cwd ? ` for ${cwd}` : ''}`);
     sessionId = latest.id;
   }
-  return importSession(roots, { source, id: sessionId, cwd, maxChars, fork });
+  return importSession(roots, { source, id: sessionId, cwd, fallbackCwd, maxChars, fork });
 }
