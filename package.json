@@ -1,0 +1,37 @@
+{
+  "name": "kiro-migration-assistant",
+  "version": "0.1.0",
+  "description": "MCP server and Kiro skill that migrates Claude Code, Cursor and Codex skills, agents, MCP servers, hooks, rules and sessions into Kiro (V3 sessions).",
+  "type": "module",
+  "bin": {
+    "kiro-migration-assistant": "src/server.js"
+  },
+  "files": [
+    "src/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "test:e2e": "KMA_E2E=1 node --test test/e2e/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "keywords": [
+    "kiro",
+    "mcp",
+    "migration",
+    "claude-code",
+    "cursor",
+    "codex",
+    "sessions"
+  ],
+  "license": "MIT-0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
+  }
+}
