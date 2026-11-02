@@ -21,10 +21,10 @@ If the tools above are available as MCP tools, use them and skip this step.
 
 Otherwise (first run, the server was just installed and this session has not loaded it):
 
-1. Run in the shell: `npx -y github:irshadc/kiro-migration-assist install`. It registers the server in `~/.kiro/settings/mcp.json` (backing up the old file) and copies this skill to `~/.kiro/skills/`. Asking for a migration is consent to this install.
+1. Run in the shell: `npx -y github:irshadc/kiro-migration-assistant install`. It registers the server in `~/.kiro/settings/mcp.json` (backing up the old file) and copies this skill to `~/.kiro/skills/`. Asking for a migration is consent to this install.
 2. For the rest of THIS session, run each tool from the shell instead:
-   `npx -y github:irshadc/kiro-migration-assist call <tool> '<json args>'`
-   Example: `npx -y github:irshadc/kiro-migration-assist call scan_sources '{"workspace":"/abs/project"}'`.
+   `npx -y github:irshadc/kiro-migration-assistant call <tool> '<json args>'`
+   Example: `npx -y github:irshadc/kiro-migration-assistant call scan_sources '{"workspace":"/abs/project"}'`.
    It prints the same JSON the MCP tool returns. Unknown arguments are rejected, so use the names below exactly.
 3. Tell the user that new Kiro sessions will have the tools natively.
 

@@ -31,7 +31,7 @@ None. The server has no account-specific settings.
 ### Install from GitHub (users)
 
 ```bash
-npx -y github:irshadc/kiro-migration-assist install
+npx -y github:irshadc/kiro-migration-assistant install
 ```
 
 This adds the entry below to `~/.kiro/settings/mcp.json` (the old file is kept as `mcp.json.kma-backup-<ts>`) and copies the skill to `~/.kiro/skills/kiro-migration-assistant/`. Re-running changes nothing.
@@ -39,7 +39,7 @@ This adds the entry below to `~/.kiro/settings/mcp.json` (the old file is kept a
 ```json
 {
   "mcpServers": {
-    "kiro-migration-assistant": { "command": "npx", "args": ["-y", "github:irshadc/kiro-migration-assist"] }
+    "kiro-migration-assistant": { "command": "npx", "args": ["-y", "github:irshadc/kiro-migration-assistant"] }
   }
 }
 ```
@@ -47,8 +47,8 @@ This adds the entry below to `~/.kiro/settings/mcp.json` (the old file is kept a
 ### Install from a clone (development)
 
 ```bash
-git clone https://github.com/irshadc/kiro-migration-assist.git
-cd kiro-migration-assist
+git clone https://github.com/irshadc/kiro-migration-assistant.git
+cd kiro-migration-assistant
 npm ci
 ```
 
@@ -94,7 +94,7 @@ No seed data. Tests build their own fixture home under the OS temp dir (`test/he
 
 ## Deploy
 
-Nothing to deploy to AWS. Publishing is pushing to GitHub; users install with `npx -y github:irshadc/kiro-migration-assist`, which installs the dependencies from `package.json`.
+Nothing to deploy to AWS. Publishing is pushing to GitHub; users install with `npx -y github:irshadc/kiro-migration-assistant`, which installs the dependencies from `package.json`.
 
 ```bash
 npm test

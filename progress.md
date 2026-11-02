@@ -37,10 +37,10 @@ config and sessions into Kiro (V3 session store only).
 - [x] Corrupt Cursor composer rows skipped in listing; named per-item error on read
 - [x] `import_sessions` all=true without `source` = newest N across every source
 - [x] CLI `src/cli.js`: MCP server (no args), `install`, `tools`, `call <tool> <json>`
-- [x] `install` registers `npx -y github:irshadc/kiro-migration-assist` in `~/.kiro/settings/mcp.json` (backup) + copies skill
+- [x] `install` registers `npx -y github:irshadc/kiro-migration-assistant` in `~/.kiro/settings/mcp.json` (backup) + copies skill
 - [x] Skill: Step 0 bootstrap (install + shell `call` in the same session), full-migration workflow
 - [x] README copy-paste full-migration prompt + templates (by id, latest, recent N, per project, preview, fork)
 - [x] Tests: 51 unit/CLI/protocol; 4 e2e (resume, handoff via skill, list visibility, full migration via skill)
 - [x] npx from packed tarball: `install` and stdio `tools/list` verified
-- [ ] Push to github.com/irshadc/kiro-migration-assist (user)
+- [ ] Push to github.com/irshadc/kiro-migration-assistant (user)
 - [ ] After push: run the README prompt on a machine with real Claude/Cursor/Codex data

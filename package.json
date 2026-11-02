@@ -36,11 +36,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/irshadc/kiro-migration-assist.git"
+    "url": "git+https://github.com/irshadc/kiro-migration-assistant.git"
   },
-  "homepage": "https://github.com/irshadc/kiro-migration-assist#readme",
+  "homepage": "https://github.com/irshadc/kiro-migration-assistant#readme",
   "bugs": {
-    "url": "https://github.com/irshadc/kiro-migration-assist/issues"
+    "url": "https://github.com/irshadc/kiro-migration-assistant/issues"
   },
   "author": "Irshad Chohan"
 }

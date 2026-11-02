@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { copyDir, isFile, readJson, writeJsonAtomic } from './common/files.js';
 
 export const SERVER_NAME = 'kiro-migration-assistant';
-export const PACKAGE_SPEC = 'github:irshadc/kiro-migration-assist';
+export const PACKAGE_SPEC = 'github:irshadc/kiro-migration-assistant';
 const SKILL_DIR = fileURLToPath(new URL('../skills/kiro-migration-assistant', import.meta.url));
 
 export const serverEntry = () => ({ command: 'npx', args: ['-y', PACKAGE_SPEC] });

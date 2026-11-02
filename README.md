@@ -22,7 +22,7 @@ An MCP server plus a Kiro skill: paste one prompt into Kiro and it ports your sk
 | Rules → steering | `CLAUDE.md`, `.cursorrules`, `.cursor/rules/*.mdc`, `~/.codex/AGENTS.md` become steering files. |
 | Session import | Claude Code, Cursor IDE, Cursor Agent and Codex sessions become Kiro V3 sessions. |
 | Live handoff | Imports one session and returns `kiro-cli chat --v3 --resume-id …`. |
-| One-line install | `npx -y github:irshadc/kiro-migration-assist install` registers the server and skill. |
+| One-line install | `npx -y github:irshadc/kiro-migration-assistant install` registers the server and skill. |
 | CLI mode | `… call <tool> '<json>'` runs any tool without an MCP client. |
 | Safe by default | Dry run first, existing files never overwritten unless asked, backups for every replaced file. |
 | Idempotent | Re-running is a no-op; re-importing updates the same Kiro session until you continue it in Kiro. |
@@ -43,7 +43,7 @@ Open Kiro in the project you want to migrate (`cd my-project && kiro-cli chat --
 
 ```text
 Install and run the Kiro Migration Assistant:
-1. Run `npx -y github:irshadc/kiro-migration-assist install`.
+1. Run `npx -y github:irshadc/kiro-migration-assistant install`.
 2. Read ~/.kiro/skills/kiro-migration-assistant/SKILL.md and follow its "full migration" workflow for this project.
 Migrate everything from Claude Code, Cursor and Codex: skills, commands, agents, MCP servers, hooks and rules,
 plus my 5 most recent sessions. Show me the plan first, ask before overwriting anything, then apply it and
@@ -95,9 +95,9 @@ Example handoff result:
 Every tool also runs from a terminal and prints JSON:
 
 ```bash
-npx -y github:irshadc/kiro-migration-assist call list_sessions '{"limit":10}'
-npx -y github:irshadc/kiro-migration-assist call import_sessions '{"all":true,"limit":5,"fallbackCwd":"'"$PWD"'","dryRun":false}'
-npx -y github:irshadc/kiro-migration-assist call handoff_session '{"source":"claude-code","sessionId":"<id>"}'
+npx -y github:irshadc/kiro-migration-assistant call list_sessions '{"limit":10}'
+npx -y github:irshadc/kiro-migration-assistant call import_sessions '{"all":true,"limit":5,"fallbackCwd":"'"$PWD"'","dryRun":false}'
+npx -y github:irshadc/kiro-migration-assistant call handoff_session '{"source":"claude-code","sessionId":"<id>"}'
 ```
 
 ## Quick Start
@@ -105,7 +105,7 @@ npx -y github:irshadc/kiro-migration-assist call handoff_session '{"source":"cla
 Needs Node.js 22.13+ and `kiro-cli` with the V3 engine.
 
 ```bash
-npx -y github:irshadc/kiro-migration-assist install   # adds the MCP server + skill to ~/.kiro
+npx -y github:irshadc/kiro-migration-assistant install   # adds the MCP server + skill to ~/.kiro
 cd my-project && kiro-cli chat --v3                    # then paste the full-migration prompt
 ```
 
