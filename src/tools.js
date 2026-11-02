@@ -2,11 +2,12 @@
 // business logic lives here.
 import { z } from 'zod';
 import { CONFIG_KINDS, applyConfigPlan, discover, planConfigMigration, publicEntry, summarize } from './config/migrate-config.js';
+import { kiroInventory } from './config/kiro-inventory.js';
 import { DEFAULT_MAX_CHARS, handoffSession, importSessions, listAllSessions } from './sessions/import-sessions.js';
-import { CONFIG_SOURCES, SESSION_SOURCES, sessionSource } from './sources/index.js';
+import { CONFIG_SOURCES, DEFAULT_CONFIG_SOURCES, DEFAULT_SESSION_SOURCES, SESSION_SOURCES, UPGRADE_CONFIG_SOURCES, sessionSource } from './sources/index.js';
 
 const configSources = z.array(z.enum(Object.keys(CONFIG_SOURCES))).optional()
-  .describe('Config sources to read. Default: all.');
+  .describe('Config sources to read: claude-code, cursor, codex, or kiro (Kiro IDE *.kiro.hook files, converted to the hooks/*.json files kiro-cli V3 reads). Default: claude-code, cursor, codex.');
 const sessionSourceName = z.enum(Object.keys(SESSION_SOURCES))
   .describe('claude-code | cursor (IDE chats) | cursor-agent (cursor-agent CLI / agent transcripts) | codex');
 const workspace = z.string().optional()
@@ -18,22 +19,43 @@ const fallbackCwd = z.string().optional()
 
 const asResult = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] });
 
-async function scanSources(roots, { workspace: ws }) {
-  const config = {};
-  for (const item of discover(roots, { workspace: ws })) {
-    const bySource = (config[item.source] ??= {});
+// Counting stops here so a scan stays quick on machines with thousands of sessions.
+const SESSION_COUNT_CAP = 500;
+
+function countConfig(items) {
+  const out = {};
+  for (const item of items) {
+    const bySource = (out[item.source] ??= {});
     bySource[item.kind] = (bySource[item.kind] || 0) + (item.kind === 'mcp' ? Object.keys(item.servers).length : 1);
   }
-  const sessions = {};
-  for (const name of Object.keys(SESSION_SOURCES)) {
+  return out;
+}
+
+async function sessionSummary(roots, names) {
+  const out = {};
+  for (const name of names) {
     try {
-      const recent = await sessionSource(name).listSessions(roots, { limit: 1 });
-      sessions[name] = recent.length ? { found: true, newest: recent[0] } : { found: false };
+      const listed = await sessionSource(name).listSessions(roots, { limit: SESSION_COUNT_CAP });
+      out[name] = listed.length
+        ? { found: true, count: listed.length, ...(listed.length === SESSION_COUNT_CAP ? { countIsAtLeast: true } : {}), newest: listed[0] }
+        : { found: false, count: 0 };
     } catch (err) {
-      sessions[name] = { found: false, error: err.message };
+      out[name] = { found: false, count: 0, error: err.message };
     }
   }
-  return { config, sessions, kiroDir: roots.kiro.dir };
+  return out;
+}
+
+async function scanSources(roots, { workspace: ws }) {
+  const config = countConfig(discover(roots, { workspace: ws }));
+  const sessions = await sessionSummary(roots, DEFAULT_SESSION_SOURCES);
+  const toolOf = (sessionSourceName) => sessionSourceName.replace(/-agent$/, '');
+  const detected = Object.fromEntries(DEFAULT_CONFIG_SOURCES.map((tool) => [tool,
+    Boolean(config[tool]) || Object.entries(sessions).some(([s, v]) => toolOf(s) === tool && v.found)]));
+  const kiroUpgrade = {
+    ideHooks: countConfig(discover(roots, { sources: [...UPGRADE_CONFIG_SOURCES], workspace: ws })).kiro?.hook || 0,
+  };
+  return { detected, config, sessions, kiro: kiroInventory(roots, { workspace: ws }), kiroUpgrade, kiroDir: roots.kiro.dir };
 }
 
 function migrateConfig(roots, args) {
@@ -46,7 +68,7 @@ function migrateConfig(roots, args) {
 export const TOOLS = [
   ['scan_sources', {
     title: 'Scan migratable sources',
-    description: 'Find Claude Code, Cursor and Codex config (skills, commands, agents, MCP servers, hooks, rules) and sessions on this machine. Read-only. Call this first.',
+    description: 'Find which of Claude Code, Cursor and Codex are on this machine (`detected`), what config (skills, commands, agents, MCP servers, hooks, rules) and how many sessions each has, what Kiro already has (`kiro`), and how many Kiro IDE hooks could be converted for kiro-cli V3 (`kiroUpgrade.ideHooks`). Read-only. Call this first.',
     inputSchema: { workspace },
     annotations: { readOnlyHint: true },
   }, scanSources],
@@ -57,6 +79,7 @@ export const TOOLS = [
       sources: configSources,
       kinds: z.array(z.enum(CONFIG_KINDS)).optional().describe('Kinds to migrate. Default: all.'),
       names: z.array(z.string()).optional().describe('Only items with these names (as listed by a dry run).'),
+      ids: z.array(z.string()).optional().describe('Only these items, by the `id` a dry run returns (source/kind/scope/name). Use this to apply exactly what the user ticked.'),
       workspace,
       overwrite: z.boolean().default(false),
       dryRun: z.boolean().default(true),

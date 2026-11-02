@@ -7,6 +7,7 @@ import * as cursorAgentSessions from './cursor/agent-sessions.js';
 import * as cursorConfig from './cursor/config.js';
 import * as codexSessions from './codex/sessions.js';
 import * as codexConfig from './codex/config.js';
+import * as kiroLegacyConfig from './kiro/config.js';
 
 export const SESSION_SOURCES = Object.freeze({
   'claude-code': { label: 'Claude Code', ...claudeSessions },
@@ -19,7 +20,16 @@ export const CONFIG_SOURCES = Object.freeze({
   'claude-code': { label: 'Claude Code', ...claudeConfig },
   cursor: { label: 'Cursor', ...cursorConfig },
   codex: { label: 'Codex CLI', ...codexConfig },
+  kiro: { label: 'Kiro IDE hooks', ...kiroLegacyConfig },
 });
+
+// Sources used when the caller names none: other agents only. Converting Kiro
+// IDE hooks ('kiro') for kiro-cli V3 is a separate, explicit step. Older kiro-cli
+// sessions and JSON agents need no step: V3 resumes V2 sessions by id and
+// upgrades V2 JSON agents in place itself (verified with kiro-cli 2.26.1).
+export const UPGRADE_CONFIG_SOURCES = Object.freeze(['kiro']);
+export const DEFAULT_SESSION_SOURCES = Object.freeze(Object.keys(SESSION_SOURCES));
+export const DEFAULT_CONFIG_SOURCES = Object.freeze(Object.keys(CONFIG_SOURCES).filter((s) => !UPGRADE_CONFIG_SOURCES.includes(s)));
 
 export function sessionSource(name) {
   const s = SESSION_SOURCES[name];

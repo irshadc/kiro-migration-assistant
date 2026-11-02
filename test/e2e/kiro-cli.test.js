@@ -80,7 +80,7 @@ test('imported sessions (including folder-less ones) show in kiro-cli --list-ses
   for (const r of results) assert.ok(listed.has(r.kiroSessionId), `${r.source}/${r.id} listed`);
 });
 
-test('a Kiro agent runs the full-migration workflow from the README prompt', { skip: !ENABLED, timeout: TIMEOUT_MS * 2 }, async (t) => {
+test('a Kiro agent runs the guided migration from the README prompt', { skip: !ENABLED, timeout: TIMEOUT_MS * 2 }, async (t) => {
   // Config and sessions go to a fixture Kiro dir here; only kiro-cli's own chat session lands in the real ~/.kiro.
   const fx = makeFixture();
   t.after(() => { removeBucket(fx.ws); fx.cleanup(); });
@@ -92,9 +92,9 @@ test('a Kiro agent runs the full-migration workflow from the README prompt', { s
       env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
   } }));
   fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
-  kiro(fx.ws, ['Use the kiro-migration-assistant skill and follow its full migration workflow for this project: '
-    + 'migrate everything from Claude Code, Cursor and Codex plus my 5 most recent sessions. '
-    + 'I approve both plans in advance; do not overwrite any conflicts. Reply with a short summary.']);
+  kiro(fx.ws, ['Use the kiro-migration-assistant skill and follow its guided migration workflow for this project. '
+    + 'I want everything: all installed tools, every new item, and my 5 most recent sessions. '
+    + 'I pick everything you suggest in advance; keep Kiro\'s version of anything already there. Reply with a short summary.']);
   assert.ok(fs.existsSync(path.join(fixtureKiro, 'agents', 'reviewer.md')), 'agent migrated');
   assert.ok(fs.existsSync(path.join(fixtureKiro, 'settings', 'mcp.json')), 'MCP servers migrated');
   const bucket = path.join(fixtureKiro, 'sessions', bucketFor(fx.ws));

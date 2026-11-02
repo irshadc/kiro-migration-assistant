@@ -4,12 +4,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { copyDir, isDir, isFile, listDir, readJson, readText, writeAtomic, writeJsonAtomic } from '../common/files.js';
-import { CONFIG_SOURCES, configSource } from '../sources/index.js';
+import { DEFAULT_CONFIG_SOURCES, configSource } from '../sources/index.js';
 import { convertAgent, convertCommand, convertMcpServer, convertRule, convertSkill } from './converters.js';
 import { convertHooks } from './hooks.js';
+import { convertIdeHook } from './kiro-legacy.js';
 
 export const CONFIG_KINDS = ['skill', 'command', 'agent', 'mcp', 'hook', 'rule'];
 const CONVERTERS = { skill: convertSkill, command: convertCommand, agent: convertAgent, hook: convertHooks, rule: convertRule };
+const FORMAT_CONVERTERS = { 'kiro-ide-hook': convertIdeHook };
+
+/** Stable selector for one plan item, e.g. "claude-code/skill/user/pdf". */
+export const itemId = ({ source, kind, scope, name }) => `${source}/${kind}/${scope}/${name}`;
 
 export function scopeRoot(roots, scope, workspace) {
   if (scope === 'user') return roots.kiro.dir;
@@ -18,7 +23,7 @@ export function scopeRoot(roots, scope, workspace) {
 }
 
 /** Discover config items for the chosen sources/kinds (and optional name filter). */
-export function discover(roots, { sources = Object.keys(CONFIG_SOURCES), kinds = CONFIG_KINDS, names, workspace } = {}) {
+export function discover(roots, { sources = DEFAULT_CONFIG_SOURCES, kinds = CONFIG_KINDS, names, workspace } = {}) {
   const wanted = names?.length ? new Set(names) : null;
   return sources.flatMap((s) => configSource(s).discoverConfig(roots, { workspace }))
     .filter((i) => kinds.includes(i.kind) && (!wanted || wanted.has(i.name)));
@@ -52,7 +57,7 @@ function statusFor(op, absTarget, overwrite) {
   return overwrite ? 'overwrite' : 'conflict';
 }
 
-function planMcp(items, roots, workspace, overwrite) {
+function planMcp(items, roots, workspace, overwrite, selected) {
   const entries = [];
   const byScope = new Map();
   for (const item of items) {
@@ -61,8 +66,10 @@ function planMcp(items, roots, workspace, overwrite) {
     if (!byScope.has(target)) byScope.set(target, { existing: readJson(target, {})?.mcpServers || {}, planned: {} });
     const bucket = byScope.get(target);
     for (const [name, cfg] of Object.entries(item.servers)) {
+      const id = itemId({ ...item, name });
+      if (!selected(id)) continue;
       const { server, warnings } = convertMcpServer(name, cfg);
-      const base = { kind: 'mcp', source: item.source, scope: item.scope, name, from: item.path, target, warnings };
+      const base = { id, kind: 'mcp', source: item.source, scope: item.scope, name, from: item.path, target, warnings };
       if (bucket.planned[name]) { entries.push({ ...base, status: 'conflict', warnings: [...warnings, `already planned from ${bucket.planned[name].from}`] }); continue; }
       const prev = bucket.existing[name];
       const status = !prev ? 'create' : JSON.stringify(prev) === JSON.stringify(server) ? 'unchanged' : overwrite ? 'overwrite' : 'conflict';
@@ -74,21 +81,24 @@ function planMcp(items, roots, workspace, overwrite) {
 }
 
 /** Build the full plan. Pure with respect to the filesystem (reads only). */
-export function planConfigMigration(roots, { sources, kinds, names, workspace, overwrite = false } = {}) {
+export function planConfigMigration(roots, { sources, kinds, names, ids, workspace, overwrite = false } = {}) {
+  const wantedIds = ids?.length ? new Set(ids) : null;
+  const selected = (id) => !wantedIds || wantedIds.has(id);
   const items = discover(roots, { sources, kinds, names, workspace });
   const entries = [];
   const plannedTargets = new Map();
-  for (const item of items.filter((i) => i.kind !== 'mcp')) {
+  for (const item of items.filter((i) => i.kind !== 'mcp' && selected(itemId(i)))) {
     const root = scopeRoot(roots, item.scope, workspace);
+    const id = itemId(item);
     let result;
-    try { result = CONVERTERS[item.kind](item); } catch (err) {
-      entries.push({ kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, status: 'error', warnings: [err.message] });
+    try { result = (FORMAT_CONVERTERS[item.format] || CONVERTERS[item.kind])(item); } catch (err) {
+      entries.push({ id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, status: 'error', warnings: [err.message] });
       continue;
     }
-    if (!result.ops.length) entries.push({ kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, status: 'skipped', warnings: result.warnings });
+    if (!result.ops.length) entries.push({ id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, status: 'skipped', warnings: result.warnings });
     for (const op of result.ops) {
       const target = path.join(root, op.target);
-      const base = { kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, target, op };
+      const base = { id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, target, op };
       if (plannedTargets.has(target)) {
         entries.push({ ...base, status: 'conflict', warnings: [...result.warnings, `same target already planned from ${plannedTargets.get(target)}`] });
         continue;
@@ -97,7 +107,7 @@ export function planConfigMigration(roots, { sources, kinds, names, workspace, o
       entries.push({ ...base, status: statusFor(op, target, overwrite), warnings: result.warnings });
     }
   }
-  entries.push(...planMcp(items.filter((i) => i.kind === 'mcp'), roots, workspace, overwrite));
+  entries.push(...planMcp(items.filter((i) => i.kind === 'mcp'), roots, workspace, overwrite, selected));
   return entries;
 }
 

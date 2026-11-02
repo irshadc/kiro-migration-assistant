@@ -44,3 +44,13 @@ config and sessions into Kiro (V3 session store only).
 - [x] npx from packed tarball: `install` and stdio `tools/list` verified
 - [ ] Push to github.com/irshadc/kiro-migration-assistant (user)
 - [ ] After push: run the README prompt on a machine with real Claude/Cursor/Codex data
+
+## v0.3.0: guided migration + Kiro IDE hooks (2026-11-02)
+- [x] Skill rewritten as step-by-step guided flow: detect tools -> pick tools -> numbered checklist (new / already there / different / duplicate) -> apply picked `ids` -> pick sessions -> import -> wrap up. Live-handoff workflow unchanged.
+- [x] README prompt reads SKILL.md from GitHub raw (clone fallback); Requirements table (Node 22.13+, npx bundled, kiro-cli 2.26.1 tested).
+- [x] `migrate_config` `ids` param + per-entry `id` (`source/kind/scope/name`); `names` still works.
+- [x] `scan_sources`: `detected`, per-source session `count` (cap 500), `kiro` inventory, `kiroUpgrade.ideHooks`.
+- [x] Opt-in config source `kiro`: Kiro IDE `*.kiro.hook` -> V3 `hooks/<name>.json` (not in defaults, so existing calls unchanged).
+- [x] Verified with kiro-cli 2.26.1: V3 lists + resumes V2 sessions by id (HERON-58 probe) and upgrades V2 JSON agents in place (`.json.bak`, allowedTools -> permissions). So no V2 session/agent migrator was shipped (built, then removed).
+- [ ] Converted hook files match the V3 schema read from the bundle, but no hook (converted or hand-written) fired in headless `--no-interactive` runs, so runtime firing is unverified.
+- [x] 57 unit/CLI/protocol tests, 4 e2e tests against real kiro-cli pass.

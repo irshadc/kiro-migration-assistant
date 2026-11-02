@@ -1,6 +1,6 @@
 // Session use cases: list foreign sessions, import them into Kiro's V3 store,
 // and hand off a live session so `kiro-cli chat --v3 --resume-id` continues it.
-import { SESSION_SOURCES, sessionSource } from '../sources/index.js';
+import { DEFAULT_SESSION_SOURCES, sessionSource } from '../sources/index.js';
 import { bucketFor, inspectExisting, kiroSessionIdFor, sessionDir, writeSession } from './kiro-v3-writer.js';
 import { fitBudget, toMs, toTurns } from './transcript.js';
 
@@ -8,7 +8,7 @@ import { fitBudget, toMs, toTurns } from './transcript.js';
 export const DEFAULT_MAX_CHARS = 400_000;
 const TITLE_MAX = 120;
 
-export async function listAllSessions(roots, { sources = Object.keys(SESSION_SOURCES), cwd, limit = 20 } = {}) {
+export async function listAllSessions(roots, { sources = DEFAULT_SESSION_SOURCES, cwd, limit = 20 } = {}) {
   const all = [];
   const errors = [];
   for (const name of sources) {

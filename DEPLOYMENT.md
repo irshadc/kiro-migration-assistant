@@ -3,9 +3,13 @@
 ## Prerequisites
 
 - Tools:
-  - Node.js 22.13 or newer (`node --version`); uses the built-in `node:sqlite`.
-  - npm (bundled with Node).
-  - kiro-cli with the V3 engine (`kiro-cli chat --v3`), logged in. Needed only to resume sessions and for `npm run test:e2e`.
+  - Node.js 22.13 or newer (`node --version`); uses the built-in `node:sqlite`. Tested with Node 24.19.
+    - macOS: `brew install node` (or `nvm install 22`)
+    - Linux: `nvm install 22` ([nvm](https://github.com/nvm-sh/nvm)) or the NodeSource packages
+    - Windows: `winget install OpenJS.NodeJS.LTS`
+  - npm and npx, bundled with Node (`npx --version`). npx needs no setup: it fetches `github:irshadc/kiro-migration-assistant` on first use and caches it. Tested with npm 11.17.
+  - kiro-cli with the V3 engine (`kiro-cli chat --v3`), logged in. Tested with kiro-cli 2.26.1. Needed only to resume sessions and for `npm run test:e2e`.
+  - git, only for installing from a clone.
 - Access: read access to your own `~/.claude`, `~/.cursor`, Cursor's app-data folder and `~/.codex`; write access to `~/.kiro`.
 - AWS resources: none. Everything runs locally.
 

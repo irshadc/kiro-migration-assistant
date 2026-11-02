@@ -46,7 +46,9 @@
 | Tool layer | `src/tools.js` | Node | Schemas, error envelope, no logic | MCP `tools/call`, CLI `call` |
 | Config use case | `src/config/migrate-config.js` | Node | Discover, plan, apply, backup | `migrate_config`, `scan_sources` |
 | Converters | `src/config/converters.js` | Node | Skill, command, agent, MCP, rule conversion (pure) | planner |
-| Hook converter | `src/config/hooks.js` | Node | Claude/Cursor hooks → Kiro v1 hook file | planner |
+| Hook converter | `src/config/hooks.js` | Node | Claude/Cursor hooks → kiro-cli V3 hook file (`version: "v1"` is the file schema) | planner |
+| Kiro IDE hooks | `src/config/kiro-legacy.js` | Node | `*.kiro.hook` (when/then) → V3 hook file; glob patterns → path regex | planner |
+| Kiro inventory | `src/config/kiro-inventory.js` | Node | What Kiro already has per scope (skills, agents, MCP, hooks, steering) | `scan_sources` |
 | Tool names | `src/config/tool-names.js` | Node | Claude tool → Kiro tool id map | converters |
 | Session use case | `src/sessions/import-sessions.js` | Node | List, import, handoff, overwrite policy | session tools |
 | Transcript model | `src/sessions/transcript.js` | Node | Neutral messages → alternating turns, budget | session use case |
@@ -54,6 +56,7 @@
 | Claude Code | `src/sources/claude-code/*` | Node | Sessions JSONL, config | registry |
 | Cursor | `src/sources/cursor/*` | Node + `node:sqlite` | IDE composer DB, agent store/transcripts, config | registry |
 | Codex | `src/sources/codex/*` | Node | Rollout JSONL, `config.toml` subset parser | registry |
+| Kiro IDE | `src/sources/kiro/config.js` | Node | Finds `*.kiro.hook` (opt-in source `kiro`, not in the defaults) | registry |
 | Roots | `src/roots.js` | Node | All paths; env overrides | every adapter |
 
 ## Project Structure
@@ -66,7 +69,7 @@ kiro-migration-assistant/
 │   ├── common/                         # files, front matter, sqlite helpers
 │   ├── config/                         # config discovery, converters, planner
 │   ├── sessions/                       # transcript model, V3 writer, import/handoff
-│   └── sources/                        # claude-code/, cursor/, codex/, index.js registry
+│   └── sources/                        # claude-code/, cursor/, codex/, kiro/, index.js registry
 ├── skills/kiro-migration-assistant/    # Kiro skill (SKILL.md)
 ├── test/                               # node:test unit, CLI + MCP protocol tests
 │   ├── helpers/fixtures.js             # generated fake home (incl. SQLite DBs)
@@ -130,6 +133,7 @@ These formats were read from the kiro-cli 2.26.1 agent engine and checked by the
 | command | `skills/<name>/SKILL.md` | `$ARGUMENTS` note added; `allowed-tools` reported |
 | agent | `agents/<name>.md` | `tools` mapped (absent → `*`); `model` dropped |
 | mcp | `settings/mcp.json` | merged per scope; first source wins a name collision |
+| hook (Kiro IDE) | `hooks/<name>.json` | `when.type` → V3 trigger (`fileEdited`→`PostFileSave`, `promptSubmit`→`UserPromptSubmit`, `agentStop`→`Stop`, …); `patterns` → regex `matcher`; `askAgent`/`runCommand` → `agent`/`command`; `enabled:false` kept |
 | hook | `hooks/<source>-<file>.json` | Claude events map 1:1 (`PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart`, `SessionEnd`); matchers mapped to Kiro tool ids |
 | rule | `steering/<name>.md` | `.mdc`: `alwaysApply`→always, `globs`→fileMatch, description only→auto, else manual |
 
@@ -137,7 +141,7 @@ These formats were read from the kiro-cli 2.26.1 agent engine and checked by the
 
 | File | Wraps | Pattern |
 |------|-------|---------|
-| `skills/kiro-migration-assistant/SKILL.md` | all tools | Sequential: scan → dry run → approval → apply → verify |
+| `skills/kiro-migration-assistant/SKILL.md` | all tools | Guided, sequential: scan → user picks tools → dry-run checklist → user picks items (`ids`) → apply → user picks sessions → import → wrap up |
 | `src/config/migrate-config.js` | source config adapters + converters | Sequential plan, then apply |
 | `src/sessions/import-sessions.js` | session adapters + writer | Sequential per session; per-item errors |
 
@@ -158,3 +162,7 @@ These formats were read from the kiro-cli 2.26.1 agent engine and checked by the
 - Corrupt Cursor composer records are left out of listings and fail per item with a named error.
 - Tool inputs are truncated to 600 chars and outputs to 1500 chars per call in imported transcripts.
 - Names from disk are sanitized to `[a-z0-9_-]`, so no target path can escape the Kiro directories.
+- Every plan entry has a stable `id` (`source/kind/scope/name`); `ids` filters before planning, so a picked duplicate is planned on its own and is no longer a conflict.
+- Default sources are the other agents only. The `kiro` source (Kiro IDE hooks) is read only when named, so existing calls behave as before.
+- kiro-cli V2 sessions and V2 JSON agents are not migrated: kiro-cli 2.26.1 V3 lists and resumes V2 sessions by id, and upgrades V2 JSON agents in place (`allowedTools` → `permissions`, original kept as `.json.bak`).
+- `scan_sources` counts sessions up to 500 per source (`countIsAtLeast` when capped).
