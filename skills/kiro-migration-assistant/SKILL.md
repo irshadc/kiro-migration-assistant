@@ -39,10 +39,10 @@ Do not silently turn guided mode into fast mode.
 
 1. Check `node --version`; Node.js 22.13 or newer is required. `npx` comes with Node.js.
 2. If the MCP tools are loaded, use them.
-3. Otherwise run `npx -y github:irshadc/kiro-migration-assistant install`. In the current session, call tools with:
+3. Otherwise run `npx -y github:irshadc/kiro-migration-assistant#v0.7.0 install`. In the current session, call tools with:
 
 ```bash
-npx -y github:irshadc/kiro-migration-assistant call <tool> '<json args>'
+npx -y github:irshadc/kiro-migration-assistant#v0.7.0 call <tool> '<json args>'
 ```
 
 On Windows PowerShell, write each `"` inside the JSON as `\"`.

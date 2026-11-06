@@ -44,7 +44,7 @@ With Quick Setup, Kiro starts the server through:
 ```json
 {
   "command": "npx",
-  "args": ["-y", "github:irshadc/kiro-migration-assistant"]
+  "args": ["-y", "github:irshadc/kiro-migration-assistant#v0.7.0"]
 }
 ```
 

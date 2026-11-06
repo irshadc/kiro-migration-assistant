@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PACKAGE_SPEC } from '../src/install.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const skill = fs.readFileSync(path.join(ROOT, 'skills', 'kiro-migration-assistant', 'SKILL.md'), 'utf-8');
@@ -41,9 +42,18 @@ test('README stays concise and includes source matrix and setup checks', () => {
   assert.match(readme, /KMA preserves scope/);
   assert.match(readme, /~\/\.kiro\/skills\/kiro-migration-assistant\//);
   assert.match(readme, /### First-Time Setup Prompt/);
-  assert.match(readme, /npx -y github:irshadc\/kiro-migration-assistant install/);
+  assert.ok(readme.includes(`npx -y ${PACKAGE_SPEC} install`));
   assert.equal(readme.match(/^## Quick Start$/gm)?.length, 1);
   assert.equal(readme.match(/^## Manual Setup$/gm)?.length, 1);
   assert.match(readme, /kiro-cli chat --v3 --no-interactive "kma: preview all; change nothing"/);
   assert.match(readme, /does not create a global `kma` shell command/);
+});
+
+test('every doc command pins the same release tag the installer writes', () => {
+  const architecture = fs.readFileSync(path.join(ROOT, 'ARCHITECTURE.md'), 'utf-8');
+  for (const [name, text] of Object.entries({ 'README.md': readme, 'SKILL.md': skill, 'ARCHITECTURE.md': architecture })) {
+    const refs = text.match(/github:irshadc\/kiro-migration-assistant[^\s'"`]*/g) || [];
+    assert.ok(refs.length, `${name} names the package`);
+    assert.deepEqual([...new Set(refs)], [PACKAGE_SPEC], `${name} must use ${PACKAGE_SPEC} only`);
+  }
 });

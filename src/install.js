@@ -7,7 +7,11 @@ import { copyDir, isFile, readJson, writeJsonAtomic } from './common/files.js';
 import { isWindows } from './common/platform.js';
 
 export const SERVER_NAME = 'kiro-migration-assistant';
-export const PACKAGE_SPEC = 'github:irshadc/kiro-migration-assistant';
+// Released git tag the installer pins, so `npx` runs reviewed code instead of whatever main holds today.
+// Derived from package.json so a version bump cannot leave the pin behind.
+const { version } = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf-8'));
+export const RELEASE_TAG = `v${version}`;
+export const PACKAGE_SPEC = `github:irshadc/kiro-migration-assistant#${RELEASE_TAG}`;
 const SKILL_DIR = fileURLToPath(new URL('../skills/kiro-migration-assistant', import.meta.url));
 
 /**
