@@ -38,6 +38,8 @@ test('MCP server: tools, dry-run defaults, writes, errors', async (t) => {
 
   const scan = (await call(client, 'scan_sources', { workspace: fx.ws })).data;
   assert.equal(scan.config['claude-code'].skill, 2);
+  assert.ok(scan.configByScope['claude-code'].user.skill > 0);
+  assert.ok(Object.values(scan.configByScope['claude-code'].workspace).some((count) => count > 0));
   assert.equal(scan.config.cursor.rule, 5);
   assert.equal(scan.sessions.codex.found, true);
 
@@ -45,6 +47,9 @@ test('MCP server: tools, dry-run defaults, writes, errors', async (t) => {
   assert.equal(dry.dryRun, true);
   assert.ok(!fs.existsSync(path.join(fx.home, '.kiro', 'agents')));
   assert.ok(dry.entries.every((e) => !('op' in e)), 'internal fields hidden');
+  const reviewer = dry.entries.find((e) => e.name === 'reviewer');
+  const renamed = (await call(client, 'migrate_config', { kinds: ['agent'], ids: [reviewer.id], scopes: ['user'], renames: { [reviewer.id]: 'reviewer-from-claude' } })).data;
+  assert.equal(renamed.entries[0].targetName, 'reviewer-from-claude');
 
   const applied = (await call(client, 'migrate_config', { kinds: ['agent'], dryRun: false })).data;
   assert.equal(applied.summary.create, 2);

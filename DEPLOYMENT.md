@@ -30,7 +30,7 @@ You can also provide source folders during the guided flow. The skill passes the
 
 ## Local Development
 
-## Automatic Setup
+## Quick Setup
 
 ```bash
 npx -y github:irshadc/kiro-migration-assistant install
@@ -43,7 +43,7 @@ The installer:
 3. Backs up changed MCP settings as `mcp.json.kma-backup-<timestamp>`.
 4. Leaves matching existing setup unchanged.
 
-Start a new Kiro session so it loads the MCP server.
+Start a new Kiro session so it loads the MCP server. `npx` runs and caches KMA; it does not install a global `kma` shell command. Inside Kiro, `kma` is the skill prompt.
 
 ## Manual Setup
 
@@ -75,15 +75,21 @@ cp -R skills/kiro-migration-assistant ~/.kiro/skills/
 }
 ```
 
-4. Start a new Kiro session.
+4. Check the local MCP server:
 
-5. Run a read-only check:
-
-```text
-kma: preview; change nothing
+```bash
+node src/cli.js tools
 ```
 
-Expected result: Kiro shows each source folder, whether it exists, source counts, and the current Kiro inventory.
+Expected result: five tools are listed.
+
+5. Test the installed Kiro skill and MCP server in a new non-interactive session:
+
+```bash
+kiro-cli chat --v3 --no-interactive "kma: preview all; change nothing"
+```
+
+Expected result: KMA shows global and project source locations and writes nothing.
 
 ## Run Without Kiro
 
@@ -118,7 +124,7 @@ git status --short
 |-------|-----------------|
 | `node src/cli.js tools` | Lists five MCP tools |
 | `node src/cli.js call scan_sources '{}'` | Prints source paths and counts as JSON |
-| `kma: preview; change nothing` | Kiro invokes the skill and performs no writes |
+| `kiro-cli chat --v3 --no-interactive "kma: preview all; change nothing"` | Loads the skill and MCP server, shows sources, and writes nothing |
 | `kiro-cli chat --v3 --list-sessions` | Shows imported sessions in their project folder |
 | `/mcp` in kiro-cli | Shows `kiro-migration-assistant` connected |
 

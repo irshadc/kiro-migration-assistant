@@ -72,3 +72,22 @@ export function sourceLocations(roots) {
     codex: [at('codexDir', roots.codex.dir)],
   };
 }
+
+/** Source paths grouped by global user scope and the current project scope. */
+export function sourceLocationsByScope(roots, workspace) {
+  const at = (key, p) => ({ key, path: p, exists: fs.existsSync(p) });
+  const user = sourceLocations(roots);
+  const workspacePaths = workspace ? {
+    'claude-code': [
+      at('workspaceClaudeDir', path.join(workspace, '.claude')),
+      at('workspaceClaudeFile', path.join(workspace, 'CLAUDE.md')),
+      at('workspaceMcpFile', path.join(workspace, '.mcp.json')),
+    ],
+    cursor: [
+      at('workspaceCursorDir', path.join(workspace, '.cursor')),
+      at('workspaceCursorRules', path.join(workspace, '.cursorrules')),
+    ],
+    codex: [],
+  } : { 'claude-code': [], cursor: [], codex: [] };
+  return Object.fromEntries(Object.keys(user).map((source) => [source, { user: user[source], workspace: workspacePaths[source] }]));
+}

@@ -142,3 +142,46 @@ test('workspace-scoped items require a workspace and stay out of user scope', (t
   const plan = planConfigMigration(fx.roots, {});
   assert.ok(plan.every((e) => e.scope === 'user'));
 });
+
+
+test('scopes filter global and project items independently', (t) => {
+  const fx = makeFixture();
+  t.after(fx.cleanup);
+  const user = planConfigMigration(fx.roots, { sources: ['claude-code'], scopes: ['user'], workspace: fx.ws });
+  const workspace = planConfigMigration(fx.roots, { sources: ['claude-code'], scopes: ['workspace'], workspace: fx.ws });
+  assert.ok(user.length > 0 && user.every((e) => e.scope === 'user'));
+  assert.ok(workspace.length > 0 && workspace.every((e) => e.scope === 'workspace'));
+});
+
+test('rename copies an incoming skill under a new name without changing the source', (t) => {
+  const fx = makeFixture();
+  t.after(fx.cleanup);
+  const initial = planConfigMigration(fx.roots, { sources: ['claude-code'], kinds: ['skill'], names: ['pdf'] });
+  const id = initial[0].id;
+  const plan = planConfigMigration(fx.roots, { sources: ['claude-code'], kinds: ['skill'], names: ['pdf'], renames: { [id]: 'pdf-from-claude' } });
+  assert.equal(plan[0].targetName, 'pdf-from-claude');
+  assert.match(plan[0].target, /skills\/pdf-from-claude$/);
+  assert.match(plan[0].warnings.join('\n'), /copied as "pdf-from-claude"/);
+  applyConfigPlan(plan);
+  const copied = parseFrontmatter(read(path.join(fx.roots.kiro.dir, 'skills', 'pdf-from-claude', 'SKILL.md')));
+  assert.equal(copied.data.name, 'pdf-from-claude');
+  assert.ok(fs.existsSync(path.join(fx.roots.claude.dir, 'skills', 'pdf', 'SKILL.md')), 'source skill remains unchanged');
+});
+
+test('rename keeps an existing MCP server and adds the incoming server under a new key', (t) => {
+  const fx = makeFixture();
+  t.after(fx.cleanup);
+  const target = path.join(fx.roots.kiro.dir, 'settings', 'mcp.json');
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, JSON.stringify({ mcpServers: { github: { command: 'keep-existing' } } }));
+  const initial = planConfigMigration(fx.roots, { sources: ['claude-code'], kinds: ['mcp'] });
+  const github = find(initial, 'mcp', 'github');
+  assert.equal(github.status, 'conflict');
+  const renamed = planConfigMigration(fx.roots, { sources: ['claude-code'], kinds: ['mcp'], ids: [github.id], renames: { [github.id]: 'github-from-claude' } });
+  assert.equal(renamed[0].status, 'create');
+  assert.equal(renamed[0].targetName, 'github-from-claude');
+  applyConfigPlan(renamed);
+  const servers = JSON.parse(read(target)).mcpServers;
+  assert.equal(servers.github.command, 'keep-existing');
+  assert.equal(servers['github-from-claude'].command, 'npx');
+});

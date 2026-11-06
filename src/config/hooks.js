@@ -58,7 +58,8 @@ export function convertHooks(item) {
   const warnings = [];
   const hooks = item.format === 'cursor' ? cursorHooks(item.hooks, warnings) : claudeHooks(item.hooks, warnings);
   if (!hooks.length) return { ops: [], warnings: [...warnings, 'no convertible hooks'] };
-  const base = path.basename(item.name, '.json').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
-  const target = path.join('hooks', `${item.source}-${base}.json`);
+  const targetName = item.targetName || `${item.source}-${path.basename(item.name, '.json')}`;
+  const base = targetName.replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+  const target = path.join('hooks', `${base}.json`);
   return { ops: [{ target, content: JSON.stringify({ version: 'v1', hooks }, null, 2) + '\n' }], warnings };
 }

@@ -10,9 +10,7 @@ Everything runs locally. KMA does not change or delete the source files, and it 
 
 - Copies skills, agents, commands, MCP servers, hooks, and rules into Kiro.
 - Imports conversations so you can continue them with kiro-cli V3.
-- Shows one item at a time and lets you copy, skip, keep, or replace it.
-- Finds standard source folders and accepts a different folder when needed.
-- Previews every change and backs up files you choose to replace.
+- Shows one item at a time and lets you copy, skip, keep, rename, or replace it.
 - Runs through Kiro or directly from a terminal.
 
 ## Features
@@ -65,13 +63,12 @@ Install Kiro Migration Assistant for all my Kiro projects:
 npx -y github:irshadc/kiro-migration-assistant install
 Confirm the skill is in ~/.kiro/skills/kiro-migration-assistant/ and the MCP server is registered.
 Load the installed skill and guide this project migration step by step:
-1. Ask which source tool to use, then show what it contains.
-2. Ask what to copy, one setting or session at a time.
-3. Show the final plan before writing anything.
+1. Ask which source tool to use, then show its global and project items.
+2. Ask whether to copy global items, project items, or both.
+3. Ask what to copy, one setting or session at a time.
+4. Show the final plan before writing anything.
 Apply only my approved choices, test the result, and report what was done.
 ```
-
-The installed MCP server loads automatically in your next Kiro session.
 
 ### Guided Migration
 
@@ -83,14 +80,15 @@ kma
 
 KMA will:
 
-1. Show one source tool and the folder it scanned.
-2. Ask whether to use, skip, or locate that source elsewhere.
-3. Present one setting at a time.
-4. Present one session at a time.
-5. Show a short final plan and ask before writing.
-6. Return a resume command for each imported session.
+1. Show one source with its global and project folders, then ask whether to use it.
+2. Ask whether to review global settings, this project's settings, or both.
+3. Present one setting or session at a time and stop on every name conflict.
+4. Show a short final plan and ask before writing.
+5. Apply approved choices and return session resume commands.
 
 Type `stop reviewing` at any point to finish the current list.
+
+When the same name already exists in Kiro, KMA stops and asks you to keep the existing item, rename the incoming item, or replace the existing item with a backup. It never deletes an existing item.
 
 ### Short Prompts
 
@@ -99,29 +97,32 @@ Type `stop reviewing` at any point to finish the current list.
 | Start the guided flow | `kma` |
 | Show the complete inventory | `kma: preview all; change nothing` |
 | Copy every new item quickly | `kma: migrate everything; keep existing Kiro files` |
-| Use one source | `kma: migrate from Cursor only` |
-| Review MCP servers | `kma: review my MCP servers` |
-| Import recent sessions | `kma: review my 5 most recent sessions` |
 | Use another folder | `kma: my Claude Code data is in /data/claude` |
 | Continue by session ID | `kma: hand off Claude session <session-id>` |
 | Continue the latest session | `kma: continue my latest Cursor session in this folder` |
-| Convert Kiro IDE hooks | `kma: convert my Kiro IDE hooks for kiro-cli V3` |
 
-Replace values inside `<…>` before sending a prompt.
-
-### Automatic Setup
+## Quick Start
 
 KMA requires Node.js 22.13 or newer. `npm` and `npx` come with Node.js.
 
 ```bash
 node --version
-npx --version
 npx -y github:irshadc/kiro-migration-assistant install
+cd /absolute/path/to/your-project
+kiro-cli chat --v3
 ```
 
-The installer copies the skill and adds the MCP server to Kiro settings. Start a new Kiro session so the server loads.
+Then type `kma`.
 
-### Manual Setup
+The installer copies the skill to global Kiro skills and registers the MCP server. `npx` runs and caches the package; it does not create a global `kma` shell command.
+
+To start Kiro with the prompt already supplied, run this separately:
+
+```bash
+kiro-cli chat --v3 "kma"
+```
+
+## Manual Setup
 
 1. Clone the project and install its packages:
 
@@ -151,29 +152,27 @@ cp -R skills/kiro-migration-assistant ~/.kiro/skills/
 }
 ```
 
-4. Start a new Kiro session and type `kma`.
+4. Check that the local server lists five tools:
 
-### CLI Mode
+```bash
+node src/cli.js tools
+```
+
+5. Check that Kiro scans sources without writing:
+
+```bash
+kiro-cli chat --v3 --no-interactive "kma: preview all; change nothing"
+```
+
+## CLI Mode
 
 Run the same MCP tools without an agent:
 
 ```bash
 npx -y github:irshadc/kiro-migration-assistant call scan_sources '{"workspace":"/absolute/project/path"}'
-npx -y github:irshadc/kiro-migration-assistant call list_sessions '{"limit":10}'
-npx -y github:irshadc/kiro-migration-assistant call scan_sources '{"paths":{"claudeDir":"/data/claude"}}'
 ```
 
 Writing tools preview by default. See [ARCHITECTURE.md](ARCHITECTURE.md#mcp-tools) for every tool.
-
-## Quick Start
-
-```bash
-npx -y github:irshadc/kiro-migration-assistant install
-cd my-project
-kiro-cli chat --v3
-```
-
-Then type `kma`.
 
 ## Test
 

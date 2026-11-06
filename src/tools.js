@@ -1,11 +1,11 @@
 // MCP tool definitions: input validation + calls into the use cases. No
 // business logic lives here.
 import { z } from 'zod';
-import { CONFIG_KINDS, applyConfigPlan, discover, planConfigMigration, publicEntry, summarize } from './config/migrate-config.js';
+import { CONFIG_KINDS, CONFIG_SCOPES, applyConfigPlan, discover, planConfigMigration, publicEntry, summarize } from './config/migrate-config.js';
 import { kiroInventory } from './config/kiro-inventory.js';
 import { DEFAULT_MAX_CHARS, handoffSession, importSessions, listAllSessions } from './sessions/import-sessions.js';
 import { CONFIG_SOURCES, DEFAULT_CONFIG_SOURCES, DEFAULT_SESSION_SOURCES, SESSION_SOURCES, UPGRADE_CONFIG_SOURCES, sessionSource } from './sources/index.js';
-import { SOURCE_PATH_KEYS, sourceLocations, withSourcePaths } from './roots.js';
+import { SOURCE_PATH_KEYS, sourceLocations, sourceLocationsByScope, withSourcePaths } from './roots.js';
 
 const sourcePaths = z.object(Object.fromEntries(SOURCE_PATH_KEYS.map((key) => [key, z.string().min(1).optional()]))).strict().optional()
   .describe('Read a tool from a non-default folder (absolute or ~/ path). Keys: claudeDir (default ~/.claude), claudeJson (~/.claude.json), cursorDir (~/.cursor), cursorUserDir (Cursor IDE User dir), codexDir (~/.codex). Use when scan_sources shows a tool as not found and the user gives its location. Pass the same paths to every later call.');
@@ -35,6 +35,16 @@ function countConfig(items) {
   return out;
 }
 
+function countConfigByScope(items) {
+  const out = {};
+  for (const item of items) {
+    const bySource = (out[item.source] ??= {});
+    const byScope = (bySource[item.scope] ??= {});
+    byScope[item.kind] = (byScope[item.kind] || 0) + (item.kind === 'mcp' ? Object.keys(item.servers).length : 1);
+  }
+  return out;
+}
+
 async function sessionSummary(roots, names) {
   const out = {};
   for (const name of names) {
@@ -51,7 +61,9 @@ async function sessionSummary(roots, names) {
 }
 
 async function scanSources(roots, { workspace: ws }) {
-  const config = countConfig(discover(roots, { workspace: ws }));
+  const items = discover(roots, { workspace: ws });
+  const config = countConfig(items);
+  const configByScope = countConfigByScope(items);
   const sessions = await sessionSummary(roots, DEFAULT_SESSION_SOURCES);
   const toolOf = (sessionSourceName) => sessionSourceName.replace(/-agent$/, '');
   const detected = Object.fromEntries(DEFAULT_CONFIG_SOURCES.map((tool) => [tool,
@@ -59,7 +71,7 @@ async function scanSources(roots, { workspace: ws }) {
   const kiroUpgrade = {
     ideHooks: countConfig(discover(roots, { sources: [...UPGRADE_CONFIG_SOURCES], workspace: ws })).kiro?.hook || 0,
   };
-  return { detected, locations: sourceLocations(roots), config, sessions, kiro: kiroInventory(roots, { workspace: ws }), kiroUpgrade, kiroDir: roots.kiro.dir };
+  return { detected, locations: sourceLocations(roots), locationsByScope: sourceLocationsByScope(roots, ws), config, configByScope, sessions, kiro: kiroInventory(roots, { workspace: ws }), kiroUpgrade, kiroDir: roots.kiro.dir };
 }
 
 function migrateConfig(roots, args) {
@@ -72,18 +84,20 @@ function migrateConfig(roots, args) {
 const BASE_TOOLS = [
   ['scan_sources', {
     title: 'Scan migratable sources',
-    description: 'Find which of Claude Code, Cursor and Codex are on this machine (`detected`), the folders each is read from and whether they exist (`locations`), what config (skills, commands, agents, MCP servers, hooks, rules) and how many sessions each has, what Kiro already has (`kiro`), and how many Kiro IDE hooks could be converted for kiro-cli V3 (`kiroUpgrade.ideHooks`). Read-only. Call this first. If a tool lives elsewhere, call again with `paths`.',
+    description: 'Find which of Claude Code, Cursor and Codex are on this machine (`detected`), flat source paths (`locations`), global/project paths (`locationsByScope`), combined configuration counts (`config`), global/project counts (`configByScope`), session counts, current Kiro items (`kiro`), and Kiro IDE hooks available for V3 conversion. Read-only. Call this first. If a tool lives elsewhere, call again with `paths`.',
     inputSchema: { workspace },
     annotations: { readOnlyHint: true },
   }, scanSources],
   ['migrate_config', {
     title: 'Migrate configuration to Kiro',
-    description: 'Convert skills, slash commands (-> skills), sub-agents, MCP servers, hooks and rules (-> steering) into Kiro. dryRun defaults to true and returns the plan with per-item status (create, unchanged, conflict, overwrite) and warnings. Run with dryRun=false only after the user approved the plan. Existing files are never replaced unless overwrite=true, and replaced files are backed up.',
+    description: 'Convert selected global or project skills, commands, agents, MCP servers, hooks and rules into Kiro. dryRun defaults to true and reports create, unchanged, conflict or overwrite. Existing files remain untouched unless overwrite=true; use renames to keep an existing item and copy the incoming item under a new name. Replaced files are backed up.',
     inputSchema: {
       sources: configSources,
       kinds: z.array(z.enum(CONFIG_KINDS)).optional().describe('Kinds to migrate. Default: all.'),
+      scopes: z.array(z.enum(CONFIG_SCOPES)).optional().describe('Scopes to migrate: user (global ~/.kiro) and/or workspace (current project .kiro). Default: both.'),
       names: z.array(z.string()).optional().describe('Only items with these names (as listed by a dry run).'),
-      ids: z.array(z.string()).optional().describe('Only these items, by the `id` a dry run returns (source/kind/scope/name). Use this to apply exactly what the user ticked.'),
+      ids: z.array(z.string()).optional().describe('Only these items, by the `id` a dry run returns (source/kind/scope/name). Use this to apply exactly what the user picked.'),
+      renames: z.record(z.string(), z.string().min(1)).optional().describe('Copy selected incoming items under a different Kiro name. Keys are dry-run item ids; values are new names. Existing source files are unchanged.'),
       workspace,
       overwrite: z.boolean().default(false),
       dryRun: z.boolean().default(true),

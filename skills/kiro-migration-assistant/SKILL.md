@@ -59,7 +59,7 @@ If Node.js is missing or too old, give the matching command and stop:
 
 After asking, stop and wait for the answer. Never process the next decision in the same turn.
 
-Keep the selected sources, custom `paths`, selected item IDs, replacement choices, and selected session IDs in the conversation until the final approvals.
+Keep the selected sources, selected scopes, custom `paths`, selected item IDs, incoming `renames`, replacement choices, and selected session IDs in the conversation until the final approvals.
 
 ### 1. Review sources
 
@@ -69,8 +69,8 @@ For one source only, show:
 
 - Source name.
 - Installed or not found.
-- Exact folders scanned and whether each exists.
-- Short counts: settings and sessions.
+- Exact global and project paths from `locationsByScope`, with each marked found or not found.
+- Short counts from `configByScope`: global settings, this project's settings, and sessions.
 - Recommendation: use or skip.
 
 Ask only: use this source, use another folder, or skip it? Then stop.
@@ -81,9 +81,17 @@ Repeat until each source has been reviewed. Do not ask again about a skipped or 
 
 Path keys: `claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, and `codexDir`. Paths must be absolute or begin with `~/`.
 
-### 2. Review settings
+### 2. Choose scope
 
-Call `migrate_config` with `dryRun:true`, the selected `sources`, `workspace`, and accepted `paths`. Keep the returned entries as a queue in this order:
+After source review, show the selected sources' total global and current-project counts from `configByScope`.
+
+Ask only: review global settings, this project's settings, or both? Then stop.
+
+Map the answer to `scopes:["user"]`, `scopes:["workspace"]`, or both. Explain that global items go to `~/.kiro/` and project items go to `<workspace>/.kiro/`.
+
+### 3. Review settings
+
+Call `migrate_config` with `dryRun:true`, the selected `sources`, selected `scopes`, `workspace`, and accepted `paths`. Keep the returned entries as a queue in this order:
 
 1. Skills
 2. Agents
@@ -109,12 +117,16 @@ Ask one question:
 | Status | Choices |
 |--------|---------|
 | `create` | Copy or skip |
-| Existing different file | Keep Kiro's version or replace it |
-| Duplicate target | Choose the named source or skip both |
+| Existing different file | Keep Kiro's item, rename the incoming item, or replace with backup |
+| Duplicate target | Choose one source, rename one incoming item, or skip both |
+
+Call this a name conflict and clearly show the existing Kiro target. Never delete the existing item.
+
+If the user chooses rename, ask for the new name in the next turn. Re-run the dry plan with `renames:{"<item-id>":"<new-name>"}` and show whether the new target is available. Then ask whether to use that name.
 
 Then stop. Continue with the next entry after the answer. Let `stop reviewing` end the queue.
 
-### 3. Approve and copy settings
+### 4. Approve and copy settings
 
 After the queue ends, show only:
 
@@ -124,11 +136,11 @@ After the queue ends, show only:
 
 Ask: apply these setting changes, review again, or cancel? Then stop.
 
-After approval, call `migrate_config` with `dryRun:false` and only the selected `ids`. Use `overwrite:true` only for IDs the user explicitly chose to replace. Make a separate call for replacement IDs when needed.
+After approval, call `migrate_config` with `dryRun:false`, selected `scopes`, only the selected `ids`, and approved `renames`. Use `overwrite:true` only for IDs the user explicitly chose to replace. Make a separate call for replacement IDs when needed.
 
 Report written files and backups briefly.
 
-### 4. Review sessions
+### 5. Review sessions
 
 Call `list_sessions` for the selected session sources with `limit:20`. Use `cwd:workspace` only when the user asked for this project's sessions.
 
@@ -146,7 +158,7 @@ Continue one session at a time. When review ends, call `import_sessions` with `d
 
 After approval, repeat with `dryRun:false` and return every `resumeCommand`.
 
-### 5. Review Kiro IDE hooks
+### 6. Review Kiro IDE hooks
 
 Run this step only when `scan_sources.kiroUpgrade.ideHooks` is greater than zero.
 
@@ -156,7 +168,7 @@ Review one hook at a time using the same rules as settings. Warn when the same h
 
 The original `.kiro.hook` files remain unchanged.
 
-### 6. Finish
+### 7. Finish
 
 Report:
 
@@ -205,7 +217,8 @@ The handoff request itself approves this immediate write.
 
 - Guided mode asks exactly one decision per turn.
 - Never write before the final approval for that group.
-- Apply only selected `ids`.
+- Apply only selected `ids`, selected `scopes`, and approved `renames`.
+- Never delete an existing Kiro item. On conflict, keep it, rename the incoming item, or replace it only with explicit approval and backup.
 - Never use `overwrite:true` without explicit approval for each replacement.
 - Report every conversion warning in the item review or final summary.
 - Preserve accepted custom `paths` in every later call.

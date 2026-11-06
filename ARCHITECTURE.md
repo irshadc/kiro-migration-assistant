@@ -38,7 +38,7 @@ KMA contains a skill and an MCP server. Both run locally.
 | Skill | `~/.kiro/skills/kiro-migration-assistant/` | Tells Kiro how to scan, present choices, wait, and apply |
 | MCP server | Registered in `~/.kiro/settings/mcp.json` | Provides five tools over stdio |
 
-With automatic setup, Kiro starts the server through:
+With Quick Setup, Kiro starts the server through:
 
 ```json
 {
@@ -115,16 +115,17 @@ kiro-migration-assistant/
 
 ```mermaid
 flowchart LR
-    A[Scan sources] --> B[Review one source]
+    A[Scan global and project sources] --> B[Review one source]
     B -->|Use, custom path, or skip| B
-    B --> C[Preview settings]
-    C --> D[Review one setting]
-    D -->|Copy, keep, replace, or skip| D
-    D --> E[Approve settings]
-    E --> F[Review one session]
-    F -->|Import, skip, or stop| F
-    F --> G[Approve session imports]
-    G --> H[Resume commands]
+    B --> C[Choose global, project, or both]
+    C --> D[Preview settings]
+    D --> E[Review one setting]
+    E -->|Copy, keep, rename, replace, or skip| E
+    E --> F[Approve settings]
+    F --> G[Review one session]
+    G -->|Import, skip, or stop| G
+    G --> H[Approve session imports]
+    H --> I[Resume commands]
 ```
 
 The loops represent separate user turns. Full tables appear only in explicit preview-all mode.
@@ -150,7 +151,7 @@ JSONL/SQLite → Message[] → alternating turns → size limit → Kiro V3 reco
 | Codex | `~/.codex`, rollout JSONL, `config.toml` |
 | Kiro IDE | `.kiro/hooks/*.kiro.hook` |
 
-Every source tool supports a per-call `paths` override. `scan_sources` returns the actual path and whether it exists. A source override never changes the Kiro destination.
+Every source tool supports a per-call `paths` override. `scan_sources.locationsByScope` returns the exact global and current-project paths with an existence flag; `configByScope` returns what each scope contains. A source override never changes the Kiro destination.
 
 Source scope is preserved. User items go to `~/.kiro/`; workspace items go to `<workspace>/.kiro/`. Claude Code supports both scopes. Cursor rules are workspace-scoped. Codex `~/.codex/AGENTS.md` is user-scoped; a workspace `AGENTS.md` stays in place because Kiro already reads it.
 
@@ -174,19 +175,19 @@ Kiro V3 sessions use:
 
 | Tool | Writes | Purpose |
 |------|--------|---------|
-| `scan_sources` | No | Show source paths, counts, and current Kiro items |
-| `migrate_config` | Only with `dryRun:false` | Plan or apply selected settings |
+| `scan_sources` | No | Show source paths, global/project counts, and current Kiro items |
+| `migrate_config` | Only with `dryRun:false` | Plan or apply selected scopes and items; rename incoming conflicts when requested |
 | `list_sessions` | No | List source sessions |
 | `import_sessions` | Only with `dryRun:false` | Import selected or recent sessions |
 | `handoff_session` | Yes | Import one session and return a resume command |
 
-Every tool accepts `paths`. Writing tools validate names, keep unrelated files, and back up replaced files.
+Every tool accepts `paths`. `migrate_config` also accepts `scopes` (`user`, `workspace`) and `renames` keyed by dry-run item ID. A conflict writes nothing until the user keeps the existing item, renames the incoming item, or approves replacement. Replacements are backed up; KMA never deletes an existing item.
 
 ## Testing Strategy
 
 The test suite has two levels. Unit and protocol tests use an isolated generated home. End-to-end tests use the real kiro-cli but clean up the sessions they create.
 
-Current verified state: 64 unit/protocol tests and 6 integration tests pass. The project does not yet collect line or branch coverage percentages, enforce a coverage threshold, or run tests in GitHub Actions. Coverage here means tested behavior, not a measured percentage.
+Current verified state: 67 unit/protocol tests and 7 integration tests pass. The project does not yet collect line or branch coverage percentages, enforce a coverage threshold, or run tests in GitHub Actions. Coverage here means tested behavior, not a measured percentage.
 
 ### Unit and Protocol Tests
 
@@ -196,13 +197,13 @@ Run:
 npm test
 ```
 
-This runs 64 tests with Node's built-in test runner.
+This runs 67 tests with Node's built-in test runner.
 
 | Test file | Coverage |
 |-----------|----------|
 | `test/parsing.test.js` | Front matter, TOML, tool-name mapping, safe target names |
 | `test/sources.test.js` | Claude JSONL, Cursor Agent, Cursor IDE SQLite, Codex JSONL, missing sources |
-| `test/migrate-config.test.js` | Every config kind, dry run, apply, conflicts, backups, idempotency, scope |
+| `test/migrate-config.test.js` | Every config kind, global/project scopes, dry run, conflicts, incoming renames, backups, idempotency |
 | `test/import-sessions.test.js` | Listing, import, handoff, forks, limits, corrupt rows, fallback folders |
 | `test/kiro-v3-writer.test.js` | Folder hash, stable IDs, V3 files, index records, turn validation |
 | `test/kiro-upgrade.test.js` | Kiro IDE hook conversion, item IDs, inventory, default behavior |
@@ -221,7 +222,7 @@ Run only on a machine with a logged-in kiro-cli:
 npm run test:e2e
 ```
 
-The six integration tests in `test/e2e/kiro-cli.test.js` verify:
+The seven integration tests in `test/e2e/kiro-cli.test.js` verify:
 
 | Scenario | Proof |
 |----------|-------|
@@ -230,6 +231,7 @@ The six integration tests in `test/e2e/kiro-cli.test.js` verify:
 | Session visibility | Imported sessions appear in `kiro-cli --v3 --list-sessions` |
 | Guided migration | A Kiro agent migrates config and five sessions from generated sources |
 | `kma` default flow | The first turn asks about one source and writes nothing |
+| Global conflict rename | Kiro keeps an existing agent, copies the incoming global agent under a new name, and skips project agents |
 | `kma` and custom folder | The short prompt scans relocated Claude data, prints that path, and writes nothing in preview mode |
 
 The tests create a unique fixture project and session bucket. Cleanup removes that bucket and its index. A before/after check should show no unrelated change in `~/.kiro`.

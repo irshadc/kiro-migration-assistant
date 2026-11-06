@@ -24,7 +24,13 @@ test('scan_sources lists the folders it read from and whether they exist', async
   const fx = makeFixture();
   t.after(fx.cleanup);
   const scan = await tool('scan_sources')(fx.roots, { workspace: fx.ws });
+  assert.ok(scan.configByScope['claude-code'].user.skill > 0);
+  assert.ok(Object.values(scan.configByScope['claude-code'].workspace).some((count) => count > 0));
   assert.deepEqual(scan.locations['claude-code'][0], { key: 'claudeDir', path: path.join(fx.home, '.claude'), exists: true });
+  assert.deepEqual(scan.locationsByScope['claude-code'].user, scan.locations['claude-code']);
+  assert.equal(scan.locationsByScope['claude-code'].workspace[0].path, path.join(fx.ws, '.claude'));
+  assert.equal(scan.locationsByScope.cursor.workspace[0].path, path.join(fx.ws, '.cursor'));
+  assert.deepEqual(scan.locationsByScope.codex.workspace, []);
   assert.deepEqual(scan.locations.codex, [{ key: 'codexDir', path: path.join(fx.home, '.codex'), exists: true }]);
   assert.equal(scan.locations.cursor.length, 2);
 });

@@ -55,7 +55,7 @@ export function convertIdeHook(item) {
     ...(matcher ? { matcher } : {}), action, ...(raw.then?.timeout ? { timeout: raw.then.timeout } : {}),
     ...(raw.enabled === false ? { enabled: false } : {}),
   };
-  const base = safeName(item.name);
+  const base = safeName(item.targetName || item.name);
   warnings.push(`the original ${path.basename(item.path)} is left in place for Kiro IDE`);
   return { ops: [{ target: path.join('hooks', `${base}.json`), content: JSON.stringify({ version: 'v1', hooks: [hook] }, null, 2) + '\n' }], warnings };
 }

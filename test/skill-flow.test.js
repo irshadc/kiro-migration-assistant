@@ -12,6 +12,8 @@ const guided = skill.match(/## Guided Mode\n([\s\S]*?)\n## Full Preview Mode/)?.
 test('guided mode requires exactly one decision per turn', () => {
   assert.match(skill, /Guide the user through one decision per turn/);
   assert.match(guided, /After asking, stop and wait for the answer/);
+  assert.match(guided, /review global settings, this project's settings, or both/);
+  assert.match(guided, /Keep Kiro's item, rename the incoming item, or replace with backup/);
   assert.match(guided, /Do not display the queue/);
   assert.match(guided, /Present one session only/);
 });
@@ -31,13 +33,15 @@ test('README ranks product outcomes before workflow mechanics', () => {
   assert.ok(setupAt >= 0 && setupAt < sessionAt && sessionAt < handoffAt && handoffAt < guidedAt && guidedAt < cliAt);
 });
 
-test('README stays concise and includes source matrix and setup methods', () => {
+test('README stays concise and includes source matrix and setup checks', () => {
   assert.ok(readme.split('\n').length <= 200);
   assert.match(readme, /\| Claude Code \| Yes \| Yes \| Yes \| Yes \| Yes \| User and project \| Yes \|/);
   assert.match(readme, /KMA preserves scope/);
   assert.match(readme, /~\/\.kiro\/skills\/kiro-migration-assistant\//);
   assert.match(readme, /### First-Time Setup Prompt/);
   assert.match(readme, /npx -y github:irshadc\/kiro-migration-assistant install/);
-  assert.match(readme, /### Automatic Setup/);
-  assert.match(readme, /### Manual Setup/);
+  assert.equal(readme.match(/^## Quick Start$/gm)?.length, 1);
+  assert.equal(readme.match(/^## Manual Setup$/gm)?.length, 1);
+  assert.match(readme, /kiro-cli chat --v3 --no-interactive "kma: preview all; change nothing"/);
+  assert.match(readme, /does not create a global `kma` shell command/);
 });

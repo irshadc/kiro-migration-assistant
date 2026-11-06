@@ -147,3 +147,26 @@ test('default kma asks one source decision and writes nothing', { skip: !ENABLED
   assert.ok(!fs.existsSync(path.join(fixtureKiro, 'agents')), 'guided first turn wrote no agents');
   assert.ok(!fs.existsSync(path.join(fixtureKiro, 'sessions')), 'guided first turn imported no sessions');
 });
+
+
+test('Kiro agent preserves an existing item and renames a global incoming conflict', { skip: !ENABLED, timeout: TIMEOUT_MS * 2 }, async (t) => {
+  const fx = makeFixture();
+  t.after(() => { removeBucket(fx.ws); fx.cleanup(); });
+  const fixtureKiro = path.join(fx.home, '.kiro');
+  const kiroWs = path.join(fx.ws, '.kiro');
+  fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
+  fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
+    'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')],
+      env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
+  } }));
+  fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
+  const existing = path.join(fixtureKiro, 'agents', 'reviewer.md');
+  fs.mkdirSync(path.dirname(existing), { recursive: true });
+  fs.writeFileSync(existing, 'existing Kiro agent\n');
+  kiro(fx.ws, ['Use the KMA skill. Copy only the global Claude Code agent named reviewer. '
+    + 'Keep the existing Kiro reviewer unchanged and rename the incoming agent to reviewer-from-claude. '
+    + 'Skip project settings and sessions. I approve this exact plan; apply it and reply briefly.']);
+  assert.equal(fs.readFileSync(existing, 'utf-8'), 'existing Kiro agent\n');
+  assert.ok(fs.existsSync(path.join(fixtureKiro, 'agents', 'reviewer-from-claude.md')), 'renamed incoming agent created');
+  assert.ok(!fs.existsSync(path.join(kiroWs, 'agents')), 'workspace agents were not migrated');
+});

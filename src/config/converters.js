@@ -21,7 +21,7 @@ function firstLine(body) {
 }
 
 export function convertSkill(item) {
-  const name = safeName(item.name);
+  const name = safeName(item.targetName || item.name);
   const skillFile = path.join(item.path, 'SKILL.md');
   const { data, body } = parseFrontmatter(readText(skillFile));
   const warnings = [];
@@ -35,7 +35,7 @@ export function convertSkill(item) {
 
 /** Slash command (markdown prompt) -> Kiro skill. */
 export function convertCommand(item) {
-  const name = safeName(item.name);
+  const name = safeName(item.targetName || item.name);
   const { data, body } = parseFrontmatter(readText(item.path));
   const warnings = [];
   let text = body;
@@ -50,7 +50,7 @@ export function convertCommand(item) {
 /** Claude Code sub-agent (.claude/agents/*.md) -> Kiro agent profile (.kiro/agents/*.md). */
 export function convertAgent(item) {
   const { data, body } = parseFrontmatter(readText(item.path));
-  const name = safeName(data.name || item.name);
+  const name = safeName(item.targetName || data.name || item.name);
   const warnings = [];
   let tools = '*';
   if (data.tools !== undefined && data.tools !== null) {
@@ -93,7 +93,8 @@ function cursorRuleFrontmatter(data) {
 export function convertRule(item) {
   const raw = readText(item.path);
   const warnings = [];
-  const name = safeName(item.format === 'cursor-mdc' ? `cursor-${item.name}` : item.name);
+  const defaultName = item.format === 'cursor-mdc' ? `cursor-${item.name}` : item.name;
+  const name = safeName(item.targetName || defaultName);
   let fm = { inclusion: 'always' };
   let body = raw;
   if (item.format === 'cursor-mdc') {

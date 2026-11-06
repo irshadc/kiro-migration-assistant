@@ -5,11 +5,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { copyDir, isDir, isFile, listDir, readJson, readText, writeAtomic, writeJsonAtomic } from '../common/files.js';
 import { DEFAULT_CONFIG_SOURCES, configSource } from '../sources/index.js';
-import { convertAgent, convertCommand, convertMcpServer, convertRule, convertSkill } from './converters.js';
+import { convertAgent, convertCommand, convertMcpServer, convertRule, convertSkill, safeName } from './converters.js';
 import { convertHooks } from './hooks.js';
 import { convertIdeHook } from './kiro-legacy.js';
 
 export const CONFIG_KINDS = ['skill', 'command', 'agent', 'mcp', 'hook', 'rule'];
+export const CONFIG_SCOPES = ['user', 'workspace'];
 const CONVERTERS = { skill: convertSkill, command: convertCommand, agent: convertAgent, hook: convertHooks, rule: convertRule };
 const FORMAT_CONVERTERS = { 'kiro-ide-hook': convertIdeHook };
 
@@ -22,11 +23,11 @@ export function scopeRoot(roots, scope, workspace) {
   return path.join(workspace, '.kiro');
 }
 
-/** Discover config items for the chosen sources/kinds (and optional name filter). */
-export function discover(roots, { sources = DEFAULT_CONFIG_SOURCES, kinds = CONFIG_KINDS, names, workspace } = {}) {
+/** Discover config items for the chosen sources/kinds/scopes (and optional name filter). */
+export function discover(roots, { sources = DEFAULT_CONFIG_SOURCES, kinds = CONFIG_KINDS, scopes = CONFIG_SCOPES, names, workspace } = {}) {
   const wanted = names?.length ? new Set(names) : null;
   return sources.flatMap((s) => configSource(s).discoverConfig(roots, { workspace }))
-    .filter((i) => kinds.includes(i.kind) && (!wanted || wanted.has(i.name)));
+    .filter((i) => kinds.includes(i.kind) && scopes.includes(i.scope) && (!wanted || wanted.has(i.name)));
 }
 
 function dirFiles(dir) {
@@ -57,7 +58,12 @@ function statusFor(op, absTarget, overwrite) {
   return overwrite ? 'overwrite' : 'conflict';
 }
 
-function planMcp(items, roots, workspace, overwrite, selected) {
+function renamedTarget(id, originalName, renames) {
+  if (!renames?.[id]) return originalName;
+  return safeName(renames[id]);
+}
+
+function planMcp(items, roots, workspace, overwrite, selected, renames) {
   const entries = [];
   const byScope = new Map();
   for (const item of items) {
@@ -68,12 +74,14 @@ function planMcp(items, roots, workspace, overwrite, selected) {
     for (const [name, cfg] of Object.entries(item.servers)) {
       const id = itemId({ ...item, name });
       if (!selected(id)) continue;
-      const { server, warnings } = convertMcpServer(name, cfg);
-      const base = { id, kind: 'mcp', source: item.source, scope: item.scope, name, from: item.path, target, warnings };
-      if (bucket.planned[name]) { entries.push({ ...base, status: 'conflict', warnings: [...warnings, `already planned from ${bucket.planned[name].from}`] }); continue; }
-      const prev = bucket.existing[name];
+      const targetName = renamedTarget(id, name, renames);
+      const { server, warnings } = convertMcpServer(targetName, cfg);
+      const renameWarnings = targetName === name ? warnings : [`will be copied as "${targetName}"`, ...warnings];
+      const base = { id, kind: 'mcp', source: item.source, scope: item.scope, name, ...(targetName !== name ? { targetName } : {}), from: item.path, target, warnings: renameWarnings };
+      if (bucket.planned[targetName]) { entries.push({ ...base, status: 'conflict', warnings: [...renameWarnings, `already planned from ${bucket.planned[targetName].from}`] }); continue; }
+      const prev = bucket.existing[targetName];
       const status = !prev ? 'create' : JSON.stringify(prev) === JSON.stringify(server) ? 'unchanged' : overwrite ? 'overwrite' : 'conflict';
-      bucket.planned[name] = { from: item.path };
+      bucket.planned[targetName] = { from: item.path };
       entries.push({ ...base, status, mcpServer: server });
     }
   }
@@ -81,33 +89,37 @@ function planMcp(items, roots, workspace, overwrite, selected) {
 }
 
 /** Build the full plan. Pure with respect to the filesystem (reads only). */
-export function planConfigMigration(roots, { sources, kinds, names, ids, workspace, overwrite = false } = {}) {
+export function planConfigMigration(roots, { sources, kinds, scopes, names, ids, renames, workspace, overwrite = false } = {}) {
   const wantedIds = ids?.length ? new Set(ids) : null;
   const selected = (id) => !wantedIds || wantedIds.has(id);
-  const items = discover(roots, { sources, kinds, names, workspace });
+  const items = discover(roots, { sources, kinds, scopes, names, workspace });
   const entries = [];
   const plannedTargets = new Map();
   for (const item of items.filter((i) => i.kind !== 'mcp' && selected(itemId(i)))) {
     const root = scopeRoot(roots, item.scope, workspace);
     const id = itemId(item);
+    const targetName = renamedTarget(id, item.name, renames);
+    const convertedItem = targetName === item.name ? item : { ...item, targetName };
     let result;
-    try { result = (FORMAT_CONVERTERS[item.format] || CONVERTERS[item.kind])(item); } catch (err) {
+    try { result = (FORMAT_CONVERTERS[item.format] || CONVERTERS[item.kind])(convertedItem); } catch (err) {
       entries.push({ id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, status: 'error', warnings: [err.message] });
       continue;
     }
-    if (!result.ops.length) entries.push({ id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, status: 'skipped', warnings: result.warnings });
+    const warnings = targetName === item.name ? result.warnings : [`will be copied as "${targetName}"`, ...result.warnings];
+    const renamed = targetName === item.name ? {} : { targetName };
+    if (!result.ops.length) entries.push({ id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, ...renamed, from: item.path, status: 'skipped', warnings });
     for (const op of result.ops) {
       const target = path.join(root, op.target);
-      const base = { id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, from: item.path, target, op };
+      const base = { id, kind: item.kind, source: item.source, scope: item.scope, name: item.name, ...renamed, from: item.path, target, op };
       if (plannedTargets.has(target)) {
-        entries.push({ ...base, status: 'conflict', warnings: [...result.warnings, `same target already planned from ${plannedTargets.get(target)}`] });
+        entries.push({ ...base, status: 'conflict', warnings: [...warnings, `same target already planned from ${plannedTargets.get(target)}`] });
         continue;
       }
       plannedTargets.set(target, item.path);
-      entries.push({ ...base, status: statusFor(op, target, overwrite), warnings: result.warnings });
+      entries.push({ ...base, status: statusFor(op, target, overwrite), warnings });
     }
   }
-  entries.push(...planMcp(items.filter((i) => i.kind === 'mcp'), roots, workspace, overwrite, selected));
+  entries.push(...planMcp(items.filter((i) => i.kind === 'mcp'), roots, workspace, overwrite, selected, renames));
   return entries;
 }
 
@@ -126,7 +138,7 @@ export function applyConfigPlan(entries, { now = Date.now() } = {}) {
     if (e.kind === 'mcp') {
       if (!mcpTargets.has(e.target)) mcpTargets.set(e.target, readJson(e.target, {}) || {});
       const doc = mcpTargets.get(e.target);
-      doc.mcpServers = { ...(doc.mcpServers || {}), [e.name]: e.mcpServer };
+      doc.mcpServers = { ...(doc.mcpServers || {}), [e.targetName || e.name]: e.mcpServer };
       out.push({ ...e, applied: true });
       continue;
     }

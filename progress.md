@@ -77,3 +77,11 @@ config and sessions into Kiro (V3 session store only).
 - [x] First-time prompt installs the skill globally, starts the guided flow, applies approved choices, and tests the result.
 - [x] Added copy/workflow contract tests and a real kiro-cli first-turn test.
 - [x] Verified: 64/64 unit and protocol tests; 6/6 integration tests; README 199 lines; `git diff --check` clean.
+
+## v0.6.0: global/project scope and safe conflict rename (2026-11-06)
+- [x] `scan_sources` keeps flat paths/counts and adds `locationsByScope` plus `configByScope` for exact global (`user`) and current-project (`workspace`) discoveries.
+- [x] `migrate_config` adds optional `scopes` and per-item `renames`; existing calls still scan both scopes and keep original names.
+- [x] Same-name targets remain conflicts. Guided mode offers keep existing, rename incoming, or explicitly replace with backup; KMA never deletes existing items.
+- [x] Guided mode asks global, current project, or both as a separate decision before item review.
+- [x] README now has one Quick Start, one Manual Setup with two verification commands, and one CLI section. It explains that `kma` is a Kiro prompt, not a global shell command.
+- [x] Verified: 67/67 unit and protocol tests; 7/7 real kiro-cli integration tests; README 199 lines; `git diff --check` clean.
