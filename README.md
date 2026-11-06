@@ -1,92 +1,117 @@
 # Kiro Migration Assistant
 
-Kiro Migration Assistant (KMA) moves developer settings and sessions from Claude Code, Cursor, and Codex into Kiro. It combines a Kiro skill with a local MCP server and guides you through each choice before writing anything.
+Kiro Migration Assistant (KMA) helps you move from Claude Code, Cursor, or Codex to Kiro without rebuilding your setup by hand. It finds each tool's skills, commands, agents, MCP servers, hooks, rules, and conversations, then compares them with what Kiro already has.
+
+In guided mode, KMA asks about one source or item at a time. It copies only approved settings and imports chosen conversations as resumable Kiro V3 sessions.
+
+Everything runs locally. KMA does not change or delete the source files, and it does not upload your settings or conversations.
 
 ## What It Does
 
-- Finds supported tools and shows the folders it scanned.
-- Shows what can be moved and what Kiro already has.
-- Lets you choose sources, items, and sessions.
-- Imports sessions in kiro-cli V3 format.
-- Hands off one active session by ID or project folder.
-- Reads from a different source folder when you provide one.
-- Keeps existing Kiro files unless you approve replacement.
+- Copies skills, agents, commands, MCP servers, hooks, and rules into Kiro.
+- Imports conversations so you can continue them with kiro-cli V3.
+- Shows one item at a time and lets you copy, skip, keep, or replace it.
+- Finds standard source folders and accepts a different folder when needed.
+- Previews every change and backs up files you choose to replace.
+- Runs through Kiro or directly from a terminal.
 
 ## Features
 
-| Feature | What KMA moves or does |
-|---------|------------------------|
-| Skills | Skill folders, scripts, and assets |
-| Commands | Claude and Cursor commands, plus Codex prompts, converted to Kiro skills |
-| Agents | Claude Code sub-agents converted to Kiro agents |
-| MCP servers | MCP definitions merged into Kiro settings |
-| Hooks | Claude, Cursor, and Kiro IDE hooks converted to kiro-cli V3 hook files |
-| Rules | `CLAUDE.md`, Cursor rules, and Codex `AGENTS.md` converted to Kiro steering |
-| Sessions | Selected or recent sessions imported as resumable kiro-cli V3 sessions |
-| Live handoff | One session imported immediately with a resume command |
-| Guided choices | Every item shown as new, same, different, or duplicate |
-| Safe writes | Dry run first; replaced files are backed up |
-| Custom folders | Shows default source paths and accepts another path |
-| CLI mode | Runs every MCP tool directly from a terminal |
+| Priority | Feature | What you can do |
+|----------|---------|-----------------|
+| 1 | Setup copy | Copy skills, agents, commands, MCP servers, hooks, and rules |
+| 2 | Session import | Import selected or recent conversations as resumable Kiro V3 sessions |
+| 3 | Live handoff | Continue one Claude Code, Cursor, or Codex session by ID or project folder |
+| 4 | Guided migration | Review one source, setting, hook, or session at a time |
+| 5 | CLI mode | Scan, preview, copy, or import without a Kiro agent |
+
+Supported source matrix:
+
+| Source | Skills | Commands or prompts | Agents | MCP servers | Hooks | Rules | Sessions |
+|--------|--------|---------------------|--------|-------------|-------|-------|----------|
+| Claude Code | Yes | Yes | Yes | Yes | Yes | User and project | Yes |
+| Cursor | Yes | Yes | — | Yes | Yes | Project | IDE and Agent |
+| Codex | Yes | Prompts | — | Yes | — | User | Yes |
+| Kiro IDE | — | — | — | — | Yes | — | — |
+
+Destination matrix:
+
+| Source item | Kiro destination |
+|-------------|------------------|
+| Skills | `skills/<name>/`, including scripts and assets |
+| Commands and Codex prompts | `skills/<name>/SKILL.md` |
+| Claude Code sub-agents | `agents/<name>.md` |
+| MCP server definitions | `settings/mcp.json` |
+| Claude Code, Cursor, and Kiro IDE hooks | `hooks/<name>.json` for kiro-cli V3 |
+| Source rules | `steering/<name>.md` |
+| Conversations | Kiro V3 session store |
+
+KMA preserves scope. User settings go to `~/.kiro/`; project settings go to `<project>/.kiro/`. Workspace Codex `AGENTS.md` files are not copied because Kiro already reads them.
 
 ## How It Works
 
-KMA has two local parts:
+KMA has two local parts. The Kiro skill controls the conversation and waits for your choices. The MCP server scans local files, prepares previews, and applies only approved changes.
 
-| Part | Purpose |
-|------|---------|
-| Kiro skill | Teaches Kiro the guided migration steps and provides the short name `kma` |
-| MCP server | Reads local source files and writes selected Kiro files |
-
-`npx` downloads the project code from GitHub and caches it locally. KMA does not upload your settings or sessions. The MCP server runs on your computer through stdio.
-
-Kiro loads newly registered MCP servers when a session starts. During the first session, the skill can run the same tools through CLI mode. See [ARCHITECTURE.md](ARCHITECTURE.md#kiro-integration) for the full flow.
+`npx` downloads KMA from GitHub and caches the code on your computer. KMA has no hosted service and does not upload your settings or conversations. See [ARCHITECTURE.md](ARCHITECTURE.md#kiro-integration) for the internal flow.
 
 ## How to Use
 
-## Guided Setup
+### First-Time Setup Prompt
 
-Open Kiro and paste:
+Paste this into Kiro:
 
 ```text
-Set up Kiro Migration Assistant from:
-https://github.com/irshadc/kiro-migration-assistant
-
-Read its skill and run the guided migration for this project.
-Show which tools you found, every folder you scanned, and what Kiro already has.
-Ask me what to copy. Change nothing until I choose.
+Install Kiro Migration Assistant for all my Kiro projects:
+npx -y github:irshadc/kiro-migration-assistant install
+Confirm the skill is in ~/.kiro/skills/kiro-migration-assistant/ and the MCP server is registered.
+Load the installed skill and guide this project migration step by step:
+1. Ask which source tool to use, then show what it contains.
+2. Ask what to copy, one setting or session at a time.
+3. Show the final plan before writing anything.
+Apply only my approved choices, test the result, and report what was done.
 ```
 
-Kiro will:
+The installed MCP server loads automatically in your next Kiro session.
 
-1. Check Node.js and install KMA.
-2. Show Claude Code, Cursor, and Codex source folders.
-3. Ask for another folder when a tool is not found.
-4. List settings and sessions that can move.
-5. Wait for your choices.
-6. Apply only approved items and return session resume commands.
+### Guided Migration
 
-## Short Prompts
+Install KMA, start a new Kiro session, then type:
 
-After setup, use `kma` as the skill's short name:
+```text
+kma
+```
+
+KMA will:
+
+1. Show one source tool and the folder it scanned.
+2. Ask whether to use, skip, or locate that source elsewhere.
+3. Present one setting at a time.
+4. Present one session at a time.
+5. Show a short final plan and ask before writing.
+6. Return a resume command for each imported session.
+
+Type `stop reviewing` at any point to finish the current list.
+
+### Short Prompts
 
 | Task | Prompt |
 |------|--------|
-| Start guided migration | `kma` |
-| Preview only | `kma: preview; change nothing` |
+| Start the guided flow | `kma` |
+| Show the complete inventory | `kma: preview all; change nothing` |
+| Copy every new item quickly | `kma: migrate everything; keep existing Kiro files` |
 | Use one source | `kma: migrate from Cursor only` |
-| Pick MCP servers | `kma: list my MCP servers and let me choose` |
-| Import recent sessions | `kma: import my last 5 sessions` |
+| Review MCP servers | `kma: review my MCP servers` |
+| Import recent sessions | `kma: review my 5 most recent sessions` |
 | Use another folder | `kma: my Claude Code data is in /data/claude` |
-| Resume by ID | `kma: hand off Claude session <session-id>` |
-| Resume latest session | `kma: continue my latest Cursor session from this folder` |
+| Continue by session ID | `kma: hand off Claude session <session-id>` |
+| Continue the latest session | `kma: continue my latest Cursor session in this folder` |
 | Convert Kiro IDE hooks | `kma: convert my Kiro IDE hooks for kiro-cli V3` |
 
-These prompts are templates: copy one, replace values inside `<…>`, and send it to Kiro.
+Replace values inside `<…>` before sending a prompt.
 
-## Automatic Setup
+### Automatic Setup
 
-Requirements: Node.js 22.13 or newer, with `npm` and `npx` included.
+KMA requires Node.js 22.13 or newer. `npm` and `npx` come with Node.js.
 
 ```bash
 node --version
@@ -94,13 +119,11 @@ npx --version
 npx -y github:irshadc/kiro-migration-assistant install
 ```
 
-The installer copies the skill and safely merges the MCP entry. Start a new Kiro session, then run `kma`.
+The installer copies the skill and adds the MCP server to Kiro settings. Start a new Kiro session so the server loads.
 
-## Manual Setup
+### Manual Setup
 
-Use this when you want to review every setup step.
-
-1. Clone and install dependencies:
+1. Clone the project and install its packages:
 
 ```bash
 git clone https://github.com/irshadc/kiro-migration-assistant.git
@@ -115,7 +138,7 @@ mkdir -p ~/.kiro/skills
 cp -R skills/kiro-migration-assistant ~/.kiro/skills/
 ```
 
-3. Add this server inside `mcpServers` in `~/.kiro/settings/mcp.json`. Keep any existing entries and replace the example path with the clone's absolute path:
+3. Add the server under `mcpServers` in `~/.kiro/settings/mcp.json`. Keep existing entries and use the clone's absolute path:
 
 ```json
 {
@@ -128,17 +151,11 @@ cp -R skills/kiro-migration-assistant ~/.kiro/skills/
 }
 ```
 
-4. Start a new Kiro session and verify it:
+4. Start a new Kiro session and type `kma`.
 
-```text
-kma: preview; change nothing
-```
+### CLI Mode
 
-Kiro should show the source folders it scanned and what it found.
-
-## CLI Mode
-
-Run tools without a Kiro agent:
+Run the same MCP tools without an agent:
 
 ```bash
 npx -y github:irshadc/kiro-migration-assistant call scan_sources '{"workspace":"/absolute/project/path"}'
@@ -146,7 +163,7 @@ npx -y github:irshadc/kiro-migration-assistant call list_sessions '{"limit":10}'
 npx -y github:irshadc/kiro-migration-assistant call scan_sources '{"paths":{"claudeDir":"/data/claude"}}'
 ```
 
-Writing tools use a dry run by default. See [ARCHITECTURE.md](ARCHITECTURE.md#mcp-tools) for tool behavior.
+Writing tools preview by default. See [ARCHITECTURE.md](ARCHITECTURE.md#mcp-tools) for every tool.
 
 ## Quick Start
 
@@ -160,13 +177,18 @@ Then type `kma`.
 
 ## Test
 
-Testing design, coverage, and commands are documented in [ARCHITECTURE.md](ARCHITECTURE.md#testing-strategy).
+```bash
+npm test
+npm run test:e2e
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md#testing-strategy) for coverage and isolation details.
 
 ## Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md): design, data flow, tools, and testing
-- [DEPLOYMENT.md](DEPLOYMENT.md): requirements, setup, paths, and verification
-- [SKILL.md](skills/kiro-migration-assistant/SKILL.md): guided agent workflow
+- [ARCHITECTURE.md](ARCHITECTURE.md): design, tools, data flow, and tests
+- [DEPLOYMENT.md](DEPLOYMENT.md): requirements, setup, and verification
+- [SKILL.md](skills/kiro-migration-assistant/SKILL.md): agent workflow
 
 ## License
 

@@ -68,3 +68,12 @@ config and sessions into Kiro (V3 session store only).
 - [x] Rewrote DEPLOYMENT.md (125 lines): requirements, source paths, automatic/manual setup, verification.
 - [x] Simplified ARCHITECTURE.md and added a testing strategy: 60 unit/protocol tests, 5 real kiro-cli integration tests, coverage map, isolation, release checks, and current gaps (no percentage threshold or CI).
 - [x] Verified: 60/60 unit and protocol tests; 5/5 integration tests; no added real Kiro session buckets/indexes; `git diff --check` clean.
+
+## v0.5.0: one-decision flow and product copy (2026-11-06)
+- [x] Default `kma` flow reviews one source, setting, hook, or session per turn; full tables require `kma: preview all`.
+- [x] Kept the existing fast path as explicit `kma: migrate everything`; MCP tool names and schemas are unchanged.
+- [x] Rewrote README around setup copy, session import, live handoff, guided migration, and CLI mode.
+- [x] Added source capability and Kiro destination matrices, including user vs project scope behavior.
+- [x] First-time prompt installs the skill globally, starts the guided flow, applies approved choices, and tests the result.
+- [x] Added copy/workflow contract tests and a real kiro-cli first-turn test.
+- [x] Verified: 64/64 unit and protocol tests; 6/6 integration tests; README 199 lines; `git diff --check` clean.

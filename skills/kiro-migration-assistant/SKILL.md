@@ -1,132 +1,215 @@
 ---
 name: kiro-migration-assistant
-description: Kiro Migration Assistant, short name "kma". Step-by-step guide that moves a developer from Claude Code, Cursor or Codex to Kiro. Shows which tools are installed and the folders it reads them from, shows what Kiro already has, lets the user tick which skills, commands, agents, MCP servers, hooks, rules and sessions to bring over, then applies only those. Also converts Kiro IDE hooks for kiro-cli V3 and hands off a live session by id. Use when the user says "kma", or mentions migrating, porting, importing or switching from Claude Code, Cursor or Codex, or wants to resume another agent's session in Kiro.
+description: Kiro Migration Assistant, short name "kma". Copies selected skills, commands, agents, MCP servers, hooks, rules and sessions from Claude Code, Cursor or Codex into Kiro. Guides the user through one decision at a time, supports custom source folders, converts Kiro IDE hooks for kiro-cli V3, and hands off a session by ID. Use when the user says "kma", asks to migrate or switch to Kiro, or wants to continue another coding agent's session in Kiro.
 ---
 
-# Kiro Migration Assistant (kma)
+# Kiro Migration Assistant (KMA)
 
-You are guiding the user one step at a time. At every step: show what you found, say what you suggest, and wait for their choice. Never move anything they did not pick.
+Guide the user through one decision per turn. After asking, stop and wait for the answer.
 
-A request starting with `kma` (for example `kma: preview`, `kma: import my last 5 sessions`, `kma: hand off claude session <id>`) means this skill. Read the rest of the request as the task: `kma` alone, or `kma: migrate`, runs the guided migration below.
+A decision is one source, one custom path, one setting, one hook, one session, or one final approval. Never combine decisions. Never print the complete inventory unless the user asks for `preview all`.
 
-Tools (from the `kiro-migration-assistant` MCP server):
+## Tools
 
-| Tool | Writes? | Use |
-|------|---------|-----|
-| `scan_sources` | no | Which tools are installed, what each has, what Kiro already has. Always first. |
-| `migrate_config` | only with `dryRun:false` | Skills, commands, agents, MCP servers, hooks, rules. |
-| `list_sessions` | no | Sessions with ids, titles, folders. |
-| `import_sessions` | only with `dryRun:false` | Copy past sessions into Kiro. |
-| `handoff_session` | yes | Continue one session in Kiro now. |
+| Tool | Writes | Use |
+|------|--------|-----|
+| `scan_sources` | Never | Find source tools, scanned folders, counts, and current Kiro items |
+| `migrate_config` | Only with `dryRun:false` | Preview or copy settings |
+| `list_sessions` | Never | Find source sessions |
+| `import_sessions` | Only with `dryRun:false` | Preview or import selected sessions |
+| `handoff_session` | Immediately | Import one session and return its resume command |
 
-Every tool also takes an optional `paths` object to read a tool from a non-default folder (see Step 1).
+Every tool accepts an optional `paths` object for non-default source folders.
 
-## Step 0: check the setup
+## Request Modes
 
-1. Run `node --version`. It must be v22.13 or newer (the tool reads Cursor's SQLite files with Node's built-in `node:sqlite`). `npx` comes with Node; check it with `npx --version`.
-   If Node is missing or older, stop and tell the user how to install it, then wait:
-   - macOS: `brew install node` (or `nvm install 22`)
-   - Linux: `nvm install 22` (nvm: https://github.com/nvm-sh/nvm), or the NodeSource packages
-   - Windows: `winget install OpenJS.NodeJS.LTS`
-2. If the tools above are available as MCP tools, use them.
-   Otherwise run `npx -y github:irshadc/kiro-migration-assistant install` (registers the server in `~/.kiro/settings/mcp.json`, backing up the old file, and copies this skill to `~/.kiro/skills/`). Then, for the rest of THIS session, run each tool from the shell:
-   `npx -y github:irshadc/kiro-migration-assistant call <tool> '<json args>'`
-   It prints the same JSON the MCP tool returns. Unknown arguments are rejected, so use the names below exactly. New Kiro sessions get the tools natively.
-3. Use the current project folder as `workspace` (absolute path) in every call below.
+Choose the mode from the user's words:
 
-## Workflow: guided migration (default)
+| Request | Mode |
+|---------|------|
+| `kma`, migrate, move, port, or switch | Guided mode |
+| `kma: preview all` | Full read-only inventory |
+| `kma: migrate everything` | Fast mode with one combined plan and one approval |
+| A specific task, such as review MCP servers | Guided mode limited to that task |
+| Continue or hand off a session | Live handoff |
 
-Use this for any "migrate", "move", "port" or "switch" request, including the README prompt.
+Do not silently turn guided mode into fast mode.
 
-### Step 1: what is installed
+## Setup
 
-Call `scan_sources`. Show one table:
+1. Check `node --version`; Node.js 22.13 or newer is required. `npx` comes with Node.js.
+2. If the MCP tools are loaded, use them.
+3. Otherwise run `npx -y github:irshadc/kiro-migration-assistant install`. In the current session, call tools with:
 
-| Tool | Installed | Reading from | Skills | Commands | Agents | MCP servers | Hooks | Rules | Sessions |
+```bash
+npx -y github:irshadc/kiro-migration-assistant call <tool> '<json args>'
+```
 
-Use `detected`, `config.<tool>` counts and `sessions.<source>.count` (Cursor has two session sources, `cursor` and `cursor-agent`; add them). `countIsAtLeast` means "N or more". "Reading from" = the `locations.<tool>` paths, each marked found or not found (`exists`). Below it, one line on what Kiro already has (`kiro.user`, `kiro.workspace`: skills, agents, MCP servers, hooks, steering), and the Kiro folder it writes to (`kiroDir`).
+4. Use the current project's absolute path as `workspace` in every applicable call.
 
-Then ask two things in one message:
-- Which tools to migrate from. Suggest every installed tool.
-- Whether any tool lives in a different folder: name each tool that was not found and its path, for example "Claude Code: not found at `~/.claude`. Is it somewhere else?" Also offer: "Want to import from a different path? Give me the folder."
+If Node.js is missing or too old, give the matching command and stop:
 
-If the user gives a folder, call `scan_sources` again with `paths` (`claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, `codexDir`; absolute or `~/` paths) and show the table again. Pass the same `paths` to EVERY later tool call in this migration, or the tools go back to the default folders. Skip tools that are still not found without asking again.
+| System | Command |
+|--------|---------|
+| macOS | `brew install node` or `nvm install 22` |
+| Linux | `nvm install 22` |
+| Windows | `winget install OpenJS.NodeJS.LTS` |
 
-### Step 2: pick the settings
+## Guided Mode
 
-Call `migrate_config` (dry run) with the chosen `sources` and `workspace`. Show every entry as a numbered checklist, grouped by kind (skills, commands, agents, MCP servers, hooks, rules):
+After asking, stop and wait for the answer. Never process the next decision in the same turn.
 
-| # | Name | From | In Kiro | Notes |
+Keep the selected sources, custom `paths`, selected item IDs, replacement choices, and selected session IDs in the conversation until the final approvals.
 
-- From = `source` + `scope` (user = `~/.kiro`, workspace = this project's `.kiro`).
-- In Kiro, from `status`:
-  - `create`: "new"
-  - `unchanged`: "already there, same" (nothing to do; do not offer it)
-  - `conflict` with a "same target already planned" warning: "duplicate of #n" (two tools have the same name; only one can win)
-  - `conflict` otherwise: "already there, different"
-  - `skipped` / `error`: "can't move" and the reason
-- Notes = the warnings, shortened. They say what will not carry over.
+### 1. Review sources
 
-Then ask: "Which ones should I move? Reply with numbers (for example `1-4, 7`), `all new`, or `none`." For each "already there, different" item they pick, ask: keep Kiro's version, or replace it (the old file is kept as `*.kma-backup-<ts>`).
+Call `scan_sources` once. Review sources in this order: Claude Code, Cursor, Codex.
 
-### Step 3: apply the settings
+For one source only, show:
 
-Call `migrate_config` with `dryRun:false`, `ids` = the `id` of every picked entry, and the same `sources`/`workspace`. Add `overwrite:true` only if the user chose "replace" for every picked "already there, different" item; otherwise leave those out of `ids` or make two calls (one with `overwrite:true` for the replace ids only). Report what was written, where, and every backup.
+- Source name.
+- Installed or not found.
+- Exact folders scanned and whether each exists.
+- Short counts: settings and sessions.
+- Recommendation: use or skip.
 
-### Step 4: pick the sessions
+Ask only: use this source, use another folder, or skip it? Then stop.
 
-Call `list_sessions` with the chosen tools' session sources (`claude-code`, `cursor`, `cursor-agent`, `codex`), `limit` 20, and `cwd` = workspace only if the user wants this project's sessions. Show a numbered list: title, tool, folder, last update. Suggest the 5 newest. Ask which to import (numbers, `newest 5`, or `none`).
+If the user gives another folder, call `scan_sources` with the matching `paths` key and show that same source again. Ask whether to use it. Pass the accepted `paths` to every later call.
 
-Dry run first: `import_sessions` with `source` + `ids` (one call per tool) and `fallbackCwd` = workspace. Show title and status (`would-create`, `would-update`, `kept` = already continued in Kiro). After the user says yes, repeat with `dryRun:false`. Give every `resumeCommand`.
+Repeat until each source has been reviewed. Do not ask again about a skipped or still-missing source.
 
-### Step 5: Kiro IDE hooks (only if `kiroUpgrade.ideHooks` > 0)
+Path keys: `claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, and `codexDir`. Paths must be absolute or begin with `~/`.
 
-Kiro IDE stores hooks as `.kiro/hooks/*.kiro.hook`; kiro-cli V3 reads `.kiro/hooks/*.json`. Offer to convert them: `migrate_config` with `sources:["kiro"]`, same checklist and approval as Step 2, then apply as in Step 3. The `.kiro.hook` files stay for the IDE.
+### 2. Review settings
 
-### Step 6: wrap up
+Call `migrate_config` with `dryRun:true`, the selected `sources`, `workspace`, and accepted `paths`. Keep the returned entries as a queue in this order:
 
-- Summarize: settings moved, sessions imported (with resume commands), everything skipped and why.
-- Tell the user to start a new Kiro session so new MCP servers, agents and hooks load. Hooks run only in trusted workspaces.
-- `kiro-cli chat --v3 --list-sessions` in a project folder lists its imported sessions.
+1. Skills
+2. Agents
+3. MCP servers
+4. Commands
+5. Rules
+6. Hooks
 
-Shortcut: if the user asked for "everything" (the README's full-migration prompt), pre-tick all installed tools, all `new` items and the 5 newest sessions, show the checklists in one message, and ask once. Still ask per "already there, different" item.
+Do not display the queue.
 
-## Workflow: live handoff
+Skip `unchanged` entries without asking. Keep their count for the final summary. Keep `error` and `skipped` entries for the final summary unless the user can fix the problem by choosing a path.
 
-When the user says "continue my Claude Code / Cursor / Codex session here", or gives a session id:
+For one actionable entry only, show:
 
-1. `handoff_session` with `source` and `sessionId` if given, else `cwd` = the project path (takes the most recent session there). Add `fallbackCwd` = project path. This writes immediately; the request is the approval.
-2. If the source is unclear from the id, call `list_sessions` with a high `limit` and match the id.
-3. Return the `resumeCommand`. Tell the user to stop the other agent first so both do not edit the same files.
-4. Status `kept` means it was already continued in Kiro: say so and offer `fork:true` for a fresh copy.
+- Kind and name.
+- Source and scope.
+- Status in Kiro.
+- One short warning when information will not carry over.
+- Recommendation.
 
-## Older Kiro data
+Ask one question:
 
-- kiro-cli V2 sessions (`~/.kiro/sessions/cli`) need no migration: `kiro-cli chat --v3 --list-sessions` lists them and `--resume-id <id>` continues them in V3.
-- kiro-cli V2 JSON agents (`~/.kiro/agents/*.json`) need no migration either: kiro-cli V3 upgrades them in place the first time they load and keeps the original as `<name>.json.bak`.
-- Kiro IDE hooks: Step 5 above.
+| Status | Choices |
+|--------|---------|
+| `create` | Copy or skip |
+| Existing different file | Keep Kiro's version or replace it |
+| Duplicate target | Choose the named source or skip both |
 
-## Rules
+Then stop. Continue with the next entry after the answer. Let `stop reviewing` end the queue.
 
-- One step at a time. Never call a writing tool with `dryRun:false` before the user picked the items in that plan.
-- Pass `ids` so only picked items are written. Never set `overwrite:true` without a per-item "replace".
-- Report every warning; they mark what did not carry over (unmapped tools, unsupported hook events, `${VAR}` placeholders, `@file` imports, Cursor hook stdin format).
-- Long checklists: show the first 30 rows per kind and offer the rest.
-- A per-session `status:"error"` (for example a corrupt Cursor chat) does not stop the batch; report it.
-- Imported tool calls are text inside assistant turns. Kiro sees what happened but cannot replay them.
-- Long sessions keep the newest turns within `maxChars` (default 400000); `omittedTurns` says how many were dropped.
-- Only kiro-cli V3 sessions are written (`~/.kiro/sessions/<bucket>/sess_*`).
+### 3. Approve and copy settings
 
-## What maps to what
+After the queue ends, show only:
 
-| From | To Kiro |
-|------|---------|
-| `~/.claude/skills/*`, `.claude/skills/*`, `~/.cursor/skills/*`, `~/.codex/skills/*` | `skills/<name>/` (front matter `name` fixed to the folder name) |
-| Claude/Cursor commands, Codex prompts | `skills/<name>/SKILL.md` |
-| `~/.claude/agents/*.md`, `.claude/agents/*.md` | `agents/<name>.md`; tools mapped (Read→read_file, Bash→execute_bash, …), model dropped |
-| `~/.claude.json`, `.mcp.json`, `~/.cursor/mcp.json`, `.cursor/mcp.json`, `~/.codex/config.toml` | `settings/mcp.json` (merged) |
-| Claude `settings.json` hooks, Cursor `hooks.json` | `hooks/<source>-<file>.json` (kiro-cli V3 hook file; its `"version": "v1"` is the file schema version) |
-| Kiro IDE `.kiro/hooks/*.kiro.hook` | `hooks/<name>.json` (same V3 hook file) |
-| `CLAUDE.md`, `.cursorrules`, `.cursor/rules/*.mdc`, `~/.codex/AGENTS.md` | `steering/*.md` (`always` / `fileMatch` / `auto` / `manual`) |
+- Number selected by kind.
+- Number skipped.
+- Files that will be replaced.
 
-User-scope items go to `~/.kiro/`, workspace-scope items to `<workspace>/.kiro/`.
+Ask: apply these setting changes, review again, or cancel? Then stop.
+
+After approval, call `migrate_config` with `dryRun:false` and only the selected `ids`. Use `overwrite:true` only for IDs the user explicitly chose to replace. Make a separate call for replacement IDs when needed.
+
+Report written files and backups briefly.
+
+### 4. Review sessions
+
+Call `list_sessions` for the selected session sources with `limit:20`. Use `cwd:workspace` only when the user asked for this project's sessions.
+
+Present one session only:
+
+- Title.
+- Source.
+- Project folder.
+- Last update.
+- Recommendation, including whether it looks like background work or a failed session.
+
+Ask: import, skip, or stop reviewing sessions? Then stop.
+
+Continue one session at a time. When review ends, call `import_sessions` with `dryRun:true` for only the selected IDs. Report errors before asking: import these sessions or cancel? Then stop.
+
+After approval, repeat with `dryRun:false` and return every `resumeCommand`.
+
+### 5. Review Kiro IDE hooks
+
+Run this step only when `scan_sources.kiroUpgrade.ideHooks` is greater than zero.
+
+Ask whether to review Kiro IDE hooks for conversion. Then stop. If accepted, call `migrate_config` with `sources:["kiro"]` and `dryRun:true`.
+
+Review one hook at a time using the same rules as settings. Warn when the same hook exists at user and workspace scope because both may run. Get one final approval before applying selected hook IDs.
+
+The original `.kiro.hook` files remain unchanged.
+
+### 6. Finish
+
+Report:
+
+- Settings copied by kind.
+- Sessions imported with resume commands.
+- Replacements and backup paths.
+- Skipped or unsupported items and why.
+
+Tell the user to start a new Kiro session so new MCP servers, agents, and hooks load. Run `kiro-cli chat --v3 --list-sessions` from a project folder to see its imported sessions.
+
+## Full Preview Mode
+
+For `kma: preview all`, call the read-only tools and show the complete source, settings, hook, and session inventories. Make no writing calls. Full tables are allowed only in this mode.
+
+## Fast Mode
+
+For an explicit `kma: migrate everything` request:
+
+1. Scan all installed sources.
+2. Dry-run all settings and the five newest sessions.
+3. Preselect new items only. Keep existing Kiro files.
+4. Show one combined plan.
+5. Ask once before writing.
+6. Apply only after approval.
+
+Ask separately about every replacement. Existing tool arguments and safety rules remain unchanged.
+
+## Live Handoff
+
+When the user asks to continue one session:
+
+1. Call `handoff_session` with `source` and `sessionId`, or with `cwd` to use the latest session in that folder. Add `fallbackCwd` for sessions without a recorded folder.
+2. If the source is unclear, call `list_sessions` and match the ID first.
+3. Return the `resumeCommand` and tell the user to stop the other agent before both edit the same files.
+4. If the status is `kept`, explain that Kiro already continued it and offer `fork:true` for a fresh copy.
+
+The handoff request itself approves this immediate write.
+
+## Older Kiro Data
+
+- kiro-cli V2 sessions need no migration. V3 lists and resumes them.
+- kiro-cli V2 JSON agents need no migration. V3 upgrades them and keeps a `.json.bak` copy.
+- Kiro IDE hooks use Guided Mode step 5.
+
+## Safety Rules
+
+- Guided mode asks exactly one decision per turn.
+- Never write before the final approval for that group.
+- Apply only selected `ids`.
+- Never use `overwrite:true` without explicit approval for each replacement.
+- Report every conversion warning in the item review or final summary.
+- Preserve accepted custom `paths` in every later call.
+- A corrupt session does not stop other imports.
+- Imported tool calls become text; Kiro does not replay them.
+- Long sessions keep the newest turns within `maxChars` and report `omittedTurns`.
+- Write sessions only in kiro-cli V3 format.

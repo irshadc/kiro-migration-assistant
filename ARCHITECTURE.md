@@ -115,16 +115,19 @@ kiro-migration-assistant/
 
 ```mermaid
 flowchart LR
-    A[scan_sources] --> B[Show source paths and Kiro inventory]
-    B --> C[User selects sources]
-    C --> D[migrate_config dry run]
-    D --> E[User selects item IDs]
-    E --> F[migrate_config apply]
-    F --> G[list_sessions]
-    G --> H[User selects sessions]
-    H --> I[import_sessions]
-    I --> J[Resume commands]
+    A[Scan sources] --> B[Review one source]
+    B -->|Use, custom path, or skip| B
+    B --> C[Preview settings]
+    C --> D[Review one setting]
+    D -->|Copy, keep, replace, or skip| D
+    D --> E[Approve settings]
+    E --> F[Review one session]
+    F -->|Import, skip, or stop| F
+    F --> G[Approve session imports]
+    G --> H[Resume commands]
 ```
+
+The loops represent separate user turns. Full tables appear only in explicit preview-all mode.
 
 ## Data Flow
 
@@ -149,6 +152,8 @@ JSONL/SQLite → Message[] → alternating turns → size limit → Kiro V3 reco
 
 Every source tool supports a per-call `paths` override. `scan_sources` returns the actual path and whether it exists. A source override never changes the Kiro destination.
 
+Source scope is preserved. User items go to `~/.kiro/`; workspace items go to `<workspace>/.kiro/`. Claude Code supports both scopes. Cursor rules are workspace-scoped. Codex `~/.codex/AGENTS.md` is user-scoped; a workspace `AGENTS.md` stays in place because Kiro already reads it.
+
 Kiro V3 sessions use:
 
 | Path | Content |
@@ -161,7 +166,7 @@ Kiro V3 sessions use:
 
 | File | Pattern |
 |------|---------|
-| `skills/kiro-migration-assistant/SKILL.md` | Scan → show paths → ask → dry run → ask → apply → sessions |
+| `skills/kiro-migration-assistant/SKILL.md` | Guided: one decision per turn; preview-all: read-only inventory; fast: one combined plan |
 | `src/config/migrate-config.js` | Sequential plan and apply |
 | `src/sessions/import-sessions.js` | Sequential import with per-session errors |
 
@@ -181,7 +186,7 @@ Every tool accepts `paths`. Writing tools validate names, keep unrelated files, 
 
 The test suite has two levels. Unit and protocol tests use an isolated generated home. End-to-end tests use the real kiro-cli but clean up the sessions they create.
 
-Current verified state: 60 unit/protocol tests and 5 integration tests pass. The project does not yet collect line or branch coverage percentages, enforce a coverage threshold, or run tests in GitHub Actions. Coverage here means tested behavior, not a measured percentage.
+Current verified state: 64 unit/protocol tests and 6 integration tests pass. The project does not yet collect line or branch coverage percentages, enforce a coverage threshold, or run tests in GitHub Actions. Coverage here means tested behavior, not a measured percentage.
 
 ### Unit and Protocol Tests
 
@@ -191,7 +196,7 @@ Run:
 npm test
 ```
 
-This runs 60 tests with Node's built-in test runner.
+This runs 64 tests with Node's built-in test runner.
 
 | Test file | Coverage |
 |-----------|----------|
@@ -202,6 +207,7 @@ This runs 60 tests with Node's built-in test runner.
 | `test/kiro-v3-writer.test.js` | Folder hash, stable IDs, V3 files, index records, turn validation |
 | `test/kiro-upgrade.test.js` | Kiro IDE hook conversion, item IDs, inventory, default behavior |
 | `test/source-paths.test.js` | Reported scan paths, custom paths, `~/` expansion, invalid paths |
+| `test/skill-flow.test.js` | One-decision guided flow, explicit bulk modes, README feature order and length |
 | `test/cli.test.js` | Installer, idempotency, CLI calls, invalid input |
 | `test/mcp-server.test.js` | Real MCP client/server exchange over stdio and error envelopes |
 
@@ -215,7 +221,7 @@ Run only on a machine with a logged-in kiro-cli:
 npm run test:e2e
 ```
 
-The five integration tests in `test/e2e/kiro-cli.test.js` verify:
+The six integration tests in `test/e2e/kiro-cli.test.js` verify:
 
 | Scenario | Proof |
 |----------|-------|
@@ -223,6 +229,7 @@ The five integration tests in `test/e2e/kiro-cli.test.js` verify:
 | Skill and MCP handoff | A Kiro agent uses the skill and server, then returns a resume command |
 | Session visibility | Imported sessions appear in `kiro-cli --v3 --list-sessions` |
 | Guided migration | A Kiro agent migrates config and five sessions from generated sources |
+| `kma` default flow | The first turn asks about one source and writes nothing |
 | `kma` and custom folder | The short prompt scans relocated Claude data, prints that path, and writes nothing in preview mode |
 
 The tests create a unique fixture project and session bucket. Cleanup removes that bucket and its index. A before/after check should show no unrelated change in `~/.kiro`.
