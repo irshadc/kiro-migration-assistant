@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { resolveRoots } from '../../src/roots.js';
+import { applyConfigPlan, planConfigMigration } from '../../src/config/migrate-config.js';
 import { bucketFor } from '../../src/sessions/kiro-v3-writer.js';
 import { importSession, importSessions } from '../../src/sessions/import-sessions.js';
 import { makeFixture } from '../helpers/fixtures.js';
@@ -37,8 +37,7 @@ function removeBucket(cwd) {
 
 function fixtureWithRealKiro() {
   const fx = makeFixture();
-  const env = { KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: KIRO_DIR };
-  return { fx, env, roots: resolveRoots({ home: fx.home, env }) };
+  return { fx, roots: { ...fx.roots, kiro: { dir: KIRO_DIR } } };
 }
 
 test('kiro-cli --v3 resumes an imported Claude Code session with its context', { skip: !ENABLED, timeout: TIMEOUT_MS * 2 }, async (t) => {
@@ -54,16 +53,16 @@ test('kiro-cli --v3 resumes an imported Claude Code session with its context', {
 });
 
 test('a Kiro agent uses the skill + MCP server to hand off a session', { skip: !ENABLED, timeout: TIMEOUT_MS * 2 }, async (t) => {
-  const { fx, env } = fixtureWithRealKiro();
+  const fx = makeFixture();
   t.after(() => { removeBucket(fx.ws); fx.cleanup(); });
   const kiroWs = path.join(fx.ws, '.kiro');
   fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
   fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
-    'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')], env: { HOME: fx.home, ...env } },
+    'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')], env: { HOME: fx.home } },
   } }));
   fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
   kiro(fx.ws, [`Use the kiro-migration-assistant skill: hand off my most recent Claude Code session for the directory ${fx.ws} into Kiro, then reply with only the resume command.`]);
-  const expected = path.join(KIRO_DIR, 'sessions', bucketFor(fx.ws));
+  const expected = path.join(fx.roots.kiro.dir, 'sessions', bucketFor(fx.ws));
   const imported = fs.readdirSync(expected).filter((d) => d.startsWith('sess_')).map((d) => path.join(expected, d, 'messages.jsonl'))
     .filter((f) => fs.existsSync(f) && fs.readFileSync(f, 'utf-8').includes('Migrated from Claude Code session claude-s1'));
   assert.equal(imported.length, 1, 'the agent imported the fixture session through the MCP tool');
@@ -89,13 +88,13 @@ test('a Kiro agent runs the guided migration from the README prompt', { skip: !E
   fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
   fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
     'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')],
-      env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
+      env: { HOME: fx.home } },
   } }));
   fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
   kiro(fx.ws, ['Use the kiro-migration-assistant skill and follow its guided migration workflow for this project. '
     + 'I want everything: all installed tools, every new item, and my 5 most recent sessions. '
     + 'I pick everything you suggest in advance; keep Kiro\'s version of anything already there. Reply with a short summary.']);
-  assert.ok(fs.existsSync(path.join(fixtureKiro, 'agents', 'reviewer.md')), 'agent migrated');
+  assert.ok(fs.existsSync(path.join(fixtureKiro, 'agents', 'reviewer.json')), 'agent migrated');
   assert.ok(fs.existsSync(path.join(fixtureKiro, 'settings', 'mcp.json')), 'MCP servers migrated');
   const bucket = path.join(fixtureKiro, 'sessions', bucketFor(fx.ws));
   assert.equal(fs.readdirSync(bucket).filter((d) => d.startsWith('sess_')).length, 5, '5 sessions imported under the project folder');
@@ -112,7 +111,7 @@ test('a "kma: preview all" prompt shows scanned folders and reads a relocated to
   fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
   fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
     'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')],
-      env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
+      env: { HOME: fx.home } },
   } }));
   fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
   kiro(fx.ws, [`kma: preview all; change nothing. My Claude Code data is in ${moved}. `
@@ -134,7 +133,7 @@ test('default kma asks one source decision and writes nothing', { skip: !ENABLED
   fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
   fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
     'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')],
-      env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
+      env: { HOME: fx.home } },
   } }));
   fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
   kiro(fx.ws, ['kma. Start the guided migration. I have not approved any source or change yet.']);
@@ -157,7 +156,7 @@ test('Kiro agent preserves an existing item and renames a global incoming confli
   fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
   fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
     'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')],
-      env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
+      env: { HOME: fx.home } },
   } }));
   fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
   const existing = path.join(fixtureKiro, 'agents', 'reviewer.md');
@@ -167,6 +166,19 @@ test('Kiro agent preserves an existing item and renames a global incoming confli
     + 'Keep the existing Kiro reviewer unchanged and rename the incoming agent to reviewer-from-claude. '
     + 'Skip project settings and sessions. I approve this exact plan; apply it and reply briefly.']);
   assert.equal(fs.readFileSync(existing, 'utf-8'), 'existing Kiro agent\n');
-  assert.ok(fs.existsSync(path.join(fixtureKiro, 'agents', 'reviewer-from-claude.md')), 'renamed incoming agent created');
+  assert.ok(fs.existsSync(path.join(fixtureKiro, 'agents', 'reviewer-from-claude.json')), 'renamed incoming agent created');
   assert.ok(!fs.existsSync(path.join(kiroWs, 'agents')), 'workspace agents were not migrated');
+});
+
+
+test('all generated source agents validate as current Kiro JSON', { skip: !ENABLED, timeout: TIMEOUT_MS }, (t) => {
+  const fx = makeFixture();
+  t.after(fx.cleanup);
+  const plan = planConfigMigration(fx.roots, { sources: ['claude-code', 'cursor', 'codex'], kinds: ['agent'], workspace: fx.ws });
+  const applied = applyConfigPlan(plan).filter((entry) => entry.applied);
+  assert.equal(applied.length, 6);
+  for (const entry of applied) {
+    assert.match(entry.target, /\.json$/);
+    execFileSync('kiro-cli', ['agent', 'validate', '--path', entry.target], { encoding: 'utf-8', timeout: TIMEOUT_MS });
+  }
 });

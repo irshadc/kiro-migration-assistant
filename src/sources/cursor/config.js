@@ -17,6 +17,7 @@ export function discoverConfig(roots, { workspace } = {}) {
   const items = [
     ...scanSkills(path.join(dir, 'skills'), user),
     ...scanCommands(path.join(dir, 'commands'), user),
+    ...scanMarkdownFiles(path.join(dir, 'agents'), { ...user, kind: 'agent', format: 'cursor-agent' }),
     ...scanMcpFile(path.join(dir, 'mcp.json'), user),
     ...hooksItem(path.join(dir, 'hooks.json'), 'user'),
   ];
@@ -26,6 +27,7 @@ export function discoverConfig(roots, { workspace } = {}) {
     items.push(
       ...scanSkills(path.join(wsDir, 'skills'), ws),
       ...scanCommands(path.join(wsDir, 'commands'), ws),
+      ...scanMarkdownFiles(path.join(wsDir, 'agents'), { ...ws, kind: 'agent', format: 'cursor-agent' }),
       ...scanMcpFile(path.join(wsDir, 'mcp.json'), ws),
       ...hooksItem(path.join(wsDir, 'hooks.json'), 'workspace'),
       ...scanMarkdownFiles(path.join(wsDir, 'rules'), { ...ws, kind: 'rule', format: 'cursor-mdc', extensions: ['.mdc', '.md'] }),

@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { copyDir, isDir, isFile, listDir, readJson, readText, writeAtomic, writeJsonAtomic } from '../common/files.js';
 import { DEFAULT_CONFIG_SOURCES, configSource } from '../sources/index.js';
-import { convertAgent, convertCommand, convertMcpServer, convertRule, convertSkill, safeName } from './converters.js';
+import { convertMcpServer, convertCommand, convertRule, convertSkill, safeName } from './converters.js';
+import { convertAgent } from './agent-converters.js';
 import { convertHooks } from './hooks.js';
 import { convertIdeHook } from './kiro-legacy.js';
 
@@ -56,6 +57,20 @@ function statusFor(op, absTarget, overwrite) {
   }
   if (same) return 'unchanged';
   return overwrite ? 'overwrite' : 'conflict';
+}
+
+function agentTargetStatus(op, target, overwrite) {
+  const ext = path.extname(target);
+  const alternate = ext === '.json' ? `${target.slice(0, -5)}.md` : ext === '.md' ? `${target.slice(0, -3)}.json` : null;
+  if (alternate && isFile(alternate)) {
+    if (isFile(target)) return {
+      status: 'conflict',
+      existingTargets: [target, alternate],
+      warning: 'both JSON and Markdown Kiro agents already use this name; rename the incoming agent or resolve the existing duplicate manually',
+    };
+    return { status: overwrite ? 'overwrite' : 'conflict', replaces: alternate };
+  }
+  return { status: statusFor(op, target, overwrite) };
 }
 
 function renamedTarget(id, originalName, renames) {
@@ -116,7 +131,9 @@ export function planConfigMigration(roots, { sources, kinds, scopes, names, ids,
         continue;
       }
       plannedTargets.set(target, item.path);
-      entries.push({ ...base, status: statusFor(op, target, overwrite), warnings });
+      const targetStatus = item.kind === 'agent' ? agentTargetStatus(op, target, overwrite) : { status: statusFor(op, target, overwrite) };
+      const targetWarnings = targetStatus.warning ? [...warnings, targetStatus.warning] : warnings;
+      entries.push({ ...base, ...targetStatus, warnings: targetWarnings });
     }
   }
   entries.push(...planMcp(items.filter((i) => i.kind === 'mcp'), roots, workspace, overwrite, selected, renames));
@@ -143,7 +160,8 @@ export function applyConfigPlan(entries, { now = Date.now() } = {}) {
       continue;
     }
     const exists = e.op.copyFrom ? isDir(e.target) : isFile(e.target);
-    const backupPath = exists ? backup(e.target, now) : undefined;
+    const replaceTarget = e.replaces || (exists ? e.target : null);
+    const backupPath = replaceTarget ? backup(replaceTarget, now) : undefined;
     if (e.op.copyFrom) {
       copyDir(e.op.copyFrom, e.target);
       for (const [rel, content] of Object.entries(e.op.overrides || {})) writeAtomic(path.join(e.target, rel), content);
@@ -161,7 +179,7 @@ export function applyConfigPlan(entries, { now = Date.now() } = {}) {
 
 /** Strip internal fields for tool output. */
 export function publicEntry(e) {
-  const { op, mcpServer, ...rest } = e;
+  const { op, mcpServer, warning, ...rest } = e;
   return rest;
 }
 

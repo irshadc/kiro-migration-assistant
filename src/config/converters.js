@@ -4,7 +4,6 @@
 import path from 'node:path';
 import { readText } from '../common/files.js';
 import { parseFrontmatter, stringifyFrontmatter } from '../common/frontmatter.js';
-import { mapClaudeTools } from './tool-names.js';
 
 const DESCRIPTION_MAX = 200;
 
@@ -47,25 +46,7 @@ export function convertCommand(item) {
   return { ops: [{ target: path.join('skills', name, 'SKILL.md'), content: stringifyFrontmatter(fm, text) }], warnings };
 }
 
-/** Claude Code sub-agent (.claude/agents/*.md) -> Kiro agent profile (.kiro/agents/*.md). */
-export function convertAgent(item) {
-  const { data, body } = parseFrontmatter(readText(item.path));
-  const name = safeName(item.targetName || data.name || item.name);
-  const warnings = [];
-  let tools = '*';
-  if (data.tools !== undefined && data.tools !== null) {
-    const list = Array.isArray(data.tools) ? data.tools : String(data.tools).split(',');
-    const { mapped, unmapped } = mapClaudeTools(list);
-    tools = mapped;
-    if (unmapped.length) warnings.push(`tools without a Kiro equivalent were dropped: ${unmapped.join(', ')}`);
-    if (!mapped.length) warnings.push('no tools mapped; the agent will have no built-in tools until you edit it');
-  }
-  if (data.model) warnings.push(`model "${data.model}" not carried over; Kiro uses its default model`);
-  const fm = { name, description: data.description || firstLine(body), tools };
-  return { ops: [{ target: path.join('agents', `${name}.md`), content: stringifyFrontmatter(fm, body) }], warnings };
-}
-
-const MCP_KEYS = ['command', 'args', 'env', 'cwd', 'url', 'headers', 'disabled', 'timeout', 'disabledTools', 'autoApprove'];
+const MCP_KEYS = ['command', 'args', 'env', 'cwd', 'url', 'headers', 'disabled', 'timeout', 'requestTimeout', 'oauth', 'oauthScopes', 'disabledTools', 'autoApprove'];
 
 /** One server definition -> Kiro mcp.json entry. */
 export function convertMcpServer(name, cfg) {

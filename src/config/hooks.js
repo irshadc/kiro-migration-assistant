@@ -10,9 +10,9 @@ const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse']);
 
 // Cursor hooks.json events -> [Kiro trigger, matcher]
 const CURSOR_EVENTS = Object.freeze({
-  beforeShellExecution: ['PreToolUse', 'execute_bash'],
-  beforeReadFile: ['PreToolUse', 'read_file'],
-  afterFileEdit: ['PostToolUse', '^(fs_write|str_replace|fs_append)$'],
+  beforeShellExecution: ['PreToolUse', 'shell'],
+  beforeReadFile: ['PreToolUse', 'read'],
+  afterFileEdit: ['PostToolUse', 'write'],
   beforeSubmitPrompt: ['UserPromptSubmit', undefined],
   stop: ['Stop', undefined],
 });
@@ -37,6 +37,13 @@ function claudeHooks(raw, warnings) {
     });
   }
   return hooks;
+}
+
+/** Convert Claude hook groups into current Kiro inline hook documents. */
+export function convertClaudeInlineHooks(raw) {
+  const warnings = [];
+  const hooks = claudeHooks(raw || {}, warnings);
+  return { hooks, warnings };
 }
 
 function cursorHooks(raw, warnings) {

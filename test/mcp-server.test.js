@@ -14,7 +14,7 @@ async function connect(fx) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER],
-    env: { PATH: process.env.PATH, HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser') },
+    env: { PATH: process.env.PATH, HOME: fx.home },
     stderr: 'pipe',
   });
   const client = new Client({ name: 'kma-test', version: '0.0.0' });
@@ -52,8 +52,10 @@ test('MCP server: tools, dry-run defaults, writes, errors', async (t) => {
   assert.equal(renamed.entries[0].targetName, 'reviewer-from-claude');
 
   const applied = (await call(client, 'migrate_config', { kinds: ['agent'], dryRun: false })).data;
-  assert.equal(applied.summary.create, 2);
-  assert.ok(fs.existsSync(path.join(fx.home, '.kiro', 'agents', 'reviewer.md')));
+  assert.equal(applied.summary.create, 4);
+  assert.ok(fs.existsSync(path.join(fx.home, '.kiro', 'agents', 'reviewer.json')));
+  assert.ok(fs.existsSync(path.join(fx.home, '.kiro', 'agents', 'security-auditor.json')));
+  assert.ok(fs.existsSync(path.join(fx.home, '.kiro', 'agents', 'codex-reviewer.json')));
 
   const listed = (await call(client, 'list_sessions', { sources: ['claude-code'], limit: 5 })).data;
   assert.equal(listed.sessions[0].id, 'claude-s1');

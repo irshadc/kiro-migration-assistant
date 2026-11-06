@@ -85,3 +85,12 @@ config and sessions into Kiro (V3 session store only).
 - [x] Guided mode asks global, current project, or both as a separate decision before item review.
 - [x] README now has one Quick Start, one Manual Setup with two verification commands, and one CLI section. It explains that `kma` is a Kiro prompt, not a global shell command.
 - [x] Verified: 67/67 unit and protocol tests; 7/7 real kiro-cli integration tests; README 199 lines; `git diff --check` clean.
+
+## v0.7.0: complete source-agent conversion to current Kiro JSON (2026-11-06)
+- [x] Claude Markdown agents preserve prompt, current tool selectors, denied tools, skill resources, inline/referenced MCP servers, hooks, model and safe restrictions.
+- [x] Cursor user/project Markdown agents preserve prompt and model; read-only agents get Kiro write/shell exclusions and deny rules.
+- [x] Codex user/project TOML agents preserve developer instructions and model; supported feature restrictions become Kiro restrictions.
+- [x] Generated targets are `agents/<name>.json`; existing `.json` or `.md` agents with the same name are conflicts and require keep, rename or approved replacement with backup.
+- [x] Unsafe source permission modes never become Kiro grants; unsupported fields produce warnings.
+- [x] Added exact `yaml` 2.9.1 and `smol-toml` 1.9.1 parsers; `npm audit --omit=dev` reports zero vulnerabilities.
+- [x] Verified: 76/76 unit and protocol tests; 8/8 integration tests; all six generated source agents pass `kiro-cli agent validate`.

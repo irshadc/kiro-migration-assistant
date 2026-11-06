@@ -1,19 +1,22 @@
-// Tool-name translation from other agents into Kiro V3 built-in tool ids.
-// Kiro ids were read from the kiro-cli 2.26.1 agent engine bundle.
+// Tool-name translation from Claude Code into current Kiro CLI V3 selectors.
+// Current selectors were verified against the Kiro configuration reference and
+// local JSON agents accepted by kiro-cli 2.26.1.
 
 export const CLAUDE_TO_KIRO_TOOL = Object.freeze({
-  Read: 'read_file',
-  Write: 'fs_write',
-  Edit: 'str_replace',
-  MultiEdit: 'str_replace',
-  NotebookEdit: 'fs_write',
-  Bash: 'execute_bash',
-  Grep: 'grep_search',
-  Glob: 'file_search',
-  LS: 'list_directory',
+  Read: 'read',
+  Write: 'write',
+  Edit: 'write',
+  MultiEdit: 'write',
+  NotebookEdit: 'write',
+  Bash: 'shell',
+  Grep: 'grep',
+  Glob: 'glob',
+  LS: 'read',
   WebFetch: 'web_fetch',
   WebSearch: 'web_search',
-  Task: 'invoke_sub_agent',
+  Skill: 'skill',
+  Task: 'subagent',
+  Agent: 'subagent',
 });
 
 /**
@@ -27,7 +30,11 @@ export function mapClaudeTools(names) {
     const name = String(raw).trim();
     if (!name) continue;
     const base = name.replace(/\(.*\)$/, ''); // "Bash(git:*)" permission syntax
-    const kiro = CLAUDE_TO_KIRO_TOOL[base];
+    let kiro = CLAUDE_TO_KIRO_TOOL[base];
+    if (!kiro && base.startsWith('mcp__')) {
+      const split = base.indexOf('__', 5);
+      if (split > 5 && split < base.length - 2) kiro = `@${base.slice(5, split)}/${base.slice(split + 2)}`;
+    }
     if (kiro) { if (!mapped.includes(kiro)) mapped.push(kiro); } else unmapped.push(name);
   }
   return { mapped, unmapped };

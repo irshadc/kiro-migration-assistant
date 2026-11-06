@@ -1,7 +1,7 @@
 // Codex CLI configuration (user scope only; Kiro already reads workspace AGENTS.md).
 import path from 'node:path';
 import { isFile, readText } from '../../common/files.js';
-import { fileItem, scanCommands, scanSkills } from '../../config/discover.js';
+import { fileItem, scanCommands, scanMarkdownFiles, scanSkills } from '../../config/discover.js';
 import { parseToml } from './toml.js';
 
 const SOURCE = 'codex';
@@ -24,15 +24,21 @@ export function codexMcpServers(configFile) {
   return out;
 }
 
-export function discoverConfig(roots) {
+export function discoverConfig(roots, { workspace } = {}) {
   const dir = roots.codex.dir;
   const user = { source: SOURCE, scope: 'user' };
   const configFile = path.join(dir, 'config.toml');
   const servers = codexMcpServers(configFile);
-  return [
+  const items = [
     ...scanSkills(path.join(dir, 'skills'), user),
     ...scanCommands(path.join(dir, 'prompts'), user),
+    ...scanMarkdownFiles(path.join(dir, 'agents'), { ...user, kind: 'agent', format: 'codex-agent', extensions: ['.toml'] }),
     ...(Object.keys(servers).length ? [{ ...user, kind: 'mcp', name: 'config.toml', path: configFile, servers }] : []),
     ...fileItem(path.join(dir, 'AGENTS.md'), { ...user, kind: 'rule', format: 'agents-md', name: 'codex-agents' }),
   ];
+  if (workspace) {
+    const project = { source: SOURCE, scope: 'workspace' };
+    items.push(...scanMarkdownFiles(path.join(workspace, '.codex', 'agents'), { ...project, kind: 'agent', format: 'codex-agent', extensions: ['.toml'] }));
+  }
+  return items;
 }

@@ -1,3 +1,5 @@
+import { parse as parseYaml } from 'yaml';
+
 // Minimal YAML front matter reader/writer for skill, agent, rule and command
 // files. Supports the flat subset these tools actually use: scalars, booleans,
 // numbers, inline lists `[a, b]` and block lists `- a`. Anything nested is kept
@@ -56,6 +58,20 @@ export function parseFrontmatter(text) {
     data[listKey] = prev ? `${prev}\n${line}` : line;
   }
   for (const [k, v] of Object.entries(data)) if (v === '') data[k] = null;
+  return { data, body };
+}
+
+/** Parse complete YAML frontmatter for agent files with nested MCP, hook and permission fields. */
+export function parseAgentFrontmatter(text) {
+  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+  if (!normalized.startsWith(FENCE + '\n')) return { data: {}, body: normalized };
+  const end = normalized.indexOf(`\n${FENCE}`, FENCE.length);
+  if (end === -1) throw new Error('frontmatter has no closing --- fence');
+  const yaml = normalized.slice(FENCE.length + 1, end);
+  const body = normalized.slice(end + FENCE.length + 1).replace(/^\n+/, '');
+  let data;
+  try { data = parseYaml(yaml) || {}; } catch (err) { throw new Error(`invalid YAML frontmatter: ${err.message}`); }
+  if (!data || Array.isArray(data) || typeof data !== 'object') throw new Error('agent frontmatter must be a YAML object');
   return { data, body };
 }
 

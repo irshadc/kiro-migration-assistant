@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFrontmatter, stringifyFrontmatter } from '../src/common/frontmatter.js';
+import { parseAgentFrontmatter, parseFrontmatter, stringifyFrontmatter } from '../src/common/frontmatter.js';
 import { parseToml } from '../src/sources/codex/toml.js';
 import { mapClaudeMatcher, mapClaudeTools } from '../src/config/tool-names.js';
 import { safeName } from '../src/config/converters.js';
@@ -27,6 +27,14 @@ test('frontmatter: round trip quotes risky strings', () => {
   assert.equal(back.body, 'Body\n');
 });
 
+test('agent frontmatter: nested YAML becomes structured data', () => {
+  const parsed = parseAgentFrontmatter('---\nname: x\nskills:\n  - pdf\nmcpServers:\n  - browser:\n      command: npx\nhooks:\n  PreToolUse:\n    - matcher: Bash\n---\nPrompt\n');
+  assert.deepEqual(parsed.data.skills, ['pdf']);
+  assert.equal(parsed.data.mcpServers[0].browser.command, 'npx');
+  assert.equal(parsed.data.hooks.PreToolUse[0].matcher, 'Bash');
+  assert.equal(parsed.body, 'Prompt\n');
+});
+
 test('toml: tables, quoted keys, multi-line arrays, inline tables', () => {
   const t = parseToml('a = 1\n[mcp_servers.fs]\ncommand = "npx"\nargs = [\n "-y",\n "x", # c\n]\nenv = { K = "v", "Q" = \'w\' }\n[mcp_servers."web search"]\nurl = \'u\'\nenabled = false\n');
   assert.equal(t.a, 1);
@@ -38,15 +46,17 @@ test('toml: unsupported syntax reports the line', () => {
   assert.throws(() => parseToml('ok = 1\nbad = @nope\n'), /line 2/);
 });
 
-test('tool names: Claude tools map to Kiro ids, unknown ones reported', () => {
-  assert.deepEqual(mapClaudeTools(['Read', 'Edit', 'MultiEdit', 'Bash(git:*)', 'Foo']), { mapped: ['read_file', 'str_replace', 'execute_bash'], unmapped: ['Foo'] });
+test('tool names: Claude tools map to current Kiro selectors, unknown ones reported', () => {
+  assert.deepEqual(mapClaudeTools(['Read', 'Edit', 'MultiEdit', 'Bash(git:*)', 'mcp__github__search', 'Foo']), {
+    mapped: ['read', 'write', 'shell', '@github/search'], unmapped: ['Foo'],
+  });
 });
 
 test('tool names: hook matchers', () => {
   assert.deepEqual(mapClaudeMatcher('*'), { matcher: undefined, unmapped: [] });
-  assert.deepEqual(mapClaudeMatcher('Bash'), { matcher: 'execute_bash', unmapped: [] });
-  assert.equal(mapClaudeMatcher('Write|Edit').matcher, '^(fs_write|str_replace)$');
-  assert.equal(mapClaudeMatcher('mcp__a__b').matcher, null);
+  assert.deepEqual(mapClaudeMatcher('Bash'), { matcher: 'shell', unmapped: [] });
+  assert.equal(mapClaudeMatcher('Write|Edit').matcher, 'write');
+  assert.equal(mapClaudeMatcher('mcp__a__b').matcher, '@a/b');
 });
 
 test('safeName blocks path traversal', () => {

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { sourceLocations, withSourcePaths } from '../src/roots.js';
+import { resolveRoots, sourceLocations, withSourcePaths } from '../src/roots.js';
 import { TOOLS } from '../src/tools.js';
 import { makeFixture } from './helpers/fixtures.js';
 
@@ -30,7 +30,7 @@ test('scan_sources lists the folders it read from and whether they exist', async
   assert.deepEqual(scan.locationsByScope['claude-code'].user, scan.locations['claude-code']);
   assert.equal(scan.locationsByScope['claude-code'].workspace[0].path, path.join(fx.ws, '.claude'));
   assert.equal(scan.locationsByScope.cursor.workspace[0].path, path.join(fx.ws, '.cursor'));
-  assert.deepEqual(scan.locationsByScope.codex.workspace, []);
+  assert.equal(scan.locationsByScope.codex.workspace[0].path, path.join(fx.ws, '.codex'));
   assert.deepEqual(scan.locations.codex, [{ key: 'codexDir', path: path.join(fx.home, '.codex'), exists: true }]);
   assert.equal(scan.locations.cursor.length, 2);
 });
@@ -67,4 +67,15 @@ test('withSourcePaths expands ~/, keeps the Kiro target, rejects relative paths'
   assert.equal(withSourcePaths(fx.roots, undefined), fx.roots);
   assert.throws(() => withSourcePaths(fx.roots, { claudeDir: 'relative/dir' }), /paths\.claudeDir must be an absolute path/);
   assert.equal(sourceLocations(fx.roots).codex[0].exists, false);
+});
+
+test('resolveRoots honors only the tools\' own variables', () => {
+  const home = '/h';
+  const r = resolveRoots({ home, env: { CLAUDE_CONFIG_DIR: '/c', CODEX_HOME: '/x', KMA_CURSOR_DIR: '/ignored' }, platform: 'linux' });
+  assert.equal(r.claude.dir, '/c');
+  assert.equal(r.claude.globalConfigFile, path.join('/c', '.claude.json'));
+  assert.equal(r.codex.dir, '/x');
+  assert.equal(r.cursor.dir, path.join(home, '.cursor'));
+  assert.equal(r.kiro.dir, path.join(home, '.kiro'));
+  assert.equal(resolveRoots({ home, env: {}, platform: 'linux' }).claude.globalConfigFile, path.join(home, '.claude.json'));
 });

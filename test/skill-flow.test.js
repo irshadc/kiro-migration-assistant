@@ -14,6 +14,8 @@ test('guided mode requires exactly one decision per turn', () => {
   assert.match(guided, /After asking, stop and wait for the answer/);
   assert.match(guided, /review global settings, this project's settings, or both/);
   assert.match(guided, /Keep Kiro's item, rename the incoming item, or replace with backup/);
+  assert.match(guided, /generated JSON fields: prompt, tools, excluded tools, skill resources, MCP servers, hooks, model, and permissions/);
+  assert.match(guided, /kiro-cli agent validate --path/);
   assert.match(guided, /Do not display the queue/);
   assert.match(guided, /Present one session only/);
 });

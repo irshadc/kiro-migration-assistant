@@ -44,18 +44,29 @@ test('apply: commands become skills with argument note', (t) => {
   assert.ok(fs.existsSync(path.join(fx.roots.kiro.dir, 'skills', 'fix', 'SKILL.md')), 'codex prompt');
 });
 
-test('apply: agents get mapped tools; missing tools list means all tools', (t) => {
+test('apply: Claude agents become current Kiro JSON with tools, skills, MCP, hooks and restrictions', (t) => {
   const fx = makeFixture();
   t.after(fx.cleanup);
-  const plan = planConfigMigration(fx.roots, { kinds: ['agent'] });
+  const plan = planConfigMigration(fx.roots, { sources: ['claude-code'], kinds: ['agent'] });
   applyConfigPlan(plan);
-  const reviewer = parseFrontmatter(read(path.join(fx.roots.kiro.dir, 'agents', 'reviewer.md')));
-  assert.deepEqual(reviewer.data, { name: 'reviewer', description: 'Reviews code', tools: ['read_file', 'grep_search', 'execute_bash'] });
-  assert.equal(reviewer.body, 'You review code.\n');
-  assert.equal(parseFrontmatter(read(path.join(fx.roots.kiro.dir, 'agents', 'helper.md'))).data.tools, '*');
+  const reviewer = JSON.parse(read(path.join(fx.roots.kiro.dir, 'agents', 'reviewer.json')));
+  assert.equal(reviewer.name, 'reviewer');
+  assert.equal(reviewer.prompt, 'You review code.');
+  assert.deepEqual(reviewer.tools, ['read', 'grep', 'shell', '@github/search', '@github', '@browser']);
+  assert.deepEqual(reviewer.excludedTools, ['write']);
+  assert.deepEqual(reviewer.resources, ['skill://pdf']);
+  assert.equal(reviewer.includeMcpJson, true);
+  assert.equal(reviewer.mcpServers.browser.command, 'npx');
+  assert.deepEqual(reviewer.hooks, [{ name: 'claude-PreToolUse-0-0', trigger: 'PreToolUse', matcher: 'shell', action: { type: 'command', command: 'check-command.sh' } }]);
+  assert.deepEqual(reviewer.permissions, { rules: [{ capability: 'fs_write', effect: 'deny' }] });
+  assert.equal(reviewer.model, 'claude-sonnet-4.6');
+  const helper = JSON.parse(read(path.join(fx.roots.kiro.dir, 'agents', 'helper.json')));
+  assert.deepEqual(helper.tools, ['*']);
   const warnings = find(plan, 'agent', 'reviewer').warnings.join('\n');
   assert.match(warnings, /CustomTool/);
-  assert.match(warnings, /model "sonnet"/);
+  assert.match(warnings, /bypassPermissions has no safe exact Kiro mapping/);
+  assert.match(warnings, /matching skills to be migrated/);
+  assert.ok(!fs.existsSync(path.join(fx.roots.kiro.dir, 'agents', 'reviewer.md')));
 });
 
 test('apply: MCP servers merged per scope, unsupported keys dropped, existing servers preserved', (t) => {
@@ -86,14 +97,15 @@ test('apply: Claude and Cursor hooks become Kiro v1 hook files', (t) => {
   const claude = JSON.parse(read(path.join(fx.roots.kiro.dir, 'hooks', 'claude-code-settings.json')));
   assert.equal(claude.version, 'v1');
   assert.deepEqual(claude.hooks, [
-    { name: 'claude-PreToolUse-0-0', trigger: 'PreToolUse', matcher: '^(fs_write|str_replace)$', action: { type: 'command', command: 'lint.sh' }, timeout: 30 },
+    { name: 'claude-PreToolUse-0-0', trigger: 'PreToolUse', matcher: 'write', action: { type: 'command', command: 'lint.sh' }, timeout: 30 },
+    { name: 'claude-PreToolUse-1-0', trigger: 'PreToolUse', matcher: '@x/y', action: { type: 'command', command: 'never.sh' } },
     { name: 'claude-Stop-0-0', trigger: 'Stop', action: { type: 'command', command: 'notify.sh' } },
   ]);
   const claudeWarnings = find(plan, 'hook', 'settings.json').warnings.join('\n');
   assert.match(claudeWarnings, /Notification/);
-  assert.match(claudeWarnings, /mcp__x__y/);
+  assert.doesNotMatch(claudeWarnings, /mcp__x__y/);
   const cursor = JSON.parse(read(path.join(fx.roots.kiro.dir, 'hooks', 'cursor-hooks.json')));
-  assert.deepEqual(cursor.hooks.map((h) => [h.trigger, h.matcher]), [['PreToolUse', 'execute_bash'], ['PostToolUse', '^(fs_write|str_replace|fs_append)$']]);
+  assert.deepEqual(cursor.hooks.map((h) => [h.trigger, h.matcher]), [['PreToolUse', 'shell'], ['PostToolUse', 'write']]);
 });
 
 test('apply: rules become steering with the right inclusion mode', (t) => {
@@ -120,7 +132,7 @@ test('second run is a no-op; edited targets are conflicts unless overwrite (with
   applyConfigPlan(planConfigMigration(fx.roots, { workspace: fx.ws }));
   const again = planConfigMigration(fx.roots, { workspace: fx.ws });
   assert.deepEqual(Object.keys(summarize(again)).sort(), ['conflict', 'unchanged'], 'only the github name collision stays a conflict');
-  const agent = path.join(fx.roots.kiro.dir, 'agents', 'helper.md');
+  const agent = path.join(fx.roots.kiro.dir, 'agents', 'helper.json');
   fs.writeFileSync(agent, 'user edit');
   assert.equal(find(planConfigMigration(fx.roots, { kinds: ['agent'] }), 'agent', 'helper').status, 'conflict');
   const applied = applyConfigPlan(planConfigMigration(fx.roots, { kinds: ['agent'], overwrite: true }), { now: 7 });

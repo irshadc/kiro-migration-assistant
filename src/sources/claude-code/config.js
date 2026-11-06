@@ -24,7 +24,7 @@ export function discoverConfig(roots, { workspace } = {}) {
   const items = [
     ...scanSkills(path.join(c.dir, 'skills'), user),
     ...scanCommands(path.join(c.dir, 'commands'), user),
-    ...scanMarkdownFiles(path.join(c.dir, 'agents'), { ...user, kind: 'agent' }),
+    ...scanMarkdownFiles(path.join(c.dir, 'agents'), { ...user, kind: 'agent', format: 'claude-agent' }),
     ...scanMcpFile(c.globalConfigFile, user),
     ...hooksItem(path.join(c.dir, 'settings.json'), 'user'),
     ...fileItem(path.join(c.dir, 'CLAUDE.md'), { ...user, kind: 'rule', format: 'claude-md', name: 'claude-user' }),
@@ -34,7 +34,7 @@ export function discoverConfig(roots, { workspace } = {}) {
     items.push(
       ...scanSkills(path.join(workspace, '.claude', 'skills'), ws),
       ...scanCommands(path.join(workspace, '.claude', 'commands'), ws),
-      ...scanMarkdownFiles(path.join(workspace, '.claude', 'agents'), { ...ws, kind: 'agent' }),
+      ...scanMarkdownFiles(path.join(workspace, '.claude', 'agents'), { ...ws, kind: 'agent', format: 'claude-agent' }),
       ...scanMcpFile(path.join(workspace, '.mcp.json'), ws),
       ...localProjectMcp(c.globalConfigFile, workspace),
       ...hooksItem(path.join(workspace, '.claude', 'settings.json'), 'workspace'),

@@ -112,6 +112,8 @@ For one actionable entry only, show:
 - One short warning when information will not carry over.
 - Recommendation.
 
+For an agent entry, also summarize the generated JSON fields: prompt, tools, excluded tools, skill resources, MCP servers, hooks, model, and permissions. Report every unsupported source field before asking whether to copy it.
+
 Ask one question:
 
 | Status | Choices |
@@ -138,7 +140,7 @@ Ask: apply these setting changes, review again, or cancel? Then stop.
 
 After approval, call `migrate_config` with `dryRun:false`, selected `scopes`, only the selected `ids`, and approved `renames`. Use `overwrite:true` only for IDs the user explicitly chose to replace. Make a separate call for replacement IDs when needed.
 
-Report written files and backups briefly.
+Report written files and backups briefly. For every written agent JSON file, run `kiro-cli agent validate --path <absolute-target>` and report any validation failure before continuing.
 
 ### 5. Review sessions
 
@@ -211,7 +213,7 @@ The handoff request itself approves this immediate write.
 
 - kiro-cli V2 sessions need no migration. V3 lists and resumes them.
 - kiro-cli V2 JSON agents need no migration. V3 upgrades them and keeps a `.json.bak` copy.
-- Kiro IDE hooks use Guided Mode step 5.
+- Kiro IDE hooks use Guided Mode step 6.
 
 ## Safety Rules
 

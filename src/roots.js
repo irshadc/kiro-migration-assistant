@@ -11,8 +11,9 @@ function appDataDir(home, appName, platform) {
 }
 
 /**
- * Resolve tool roots. Honors each tool's own documented override variable
- * (CLAUDE_CONFIG_DIR, CODEX_HOME) plus KMA_* overrides for the rest.
+ * Resolve tool roots. Honors only each tool's own override variable
+ * (CLAUDE_CONFIG_DIR, CODEX_HOME); everything else uses the tool's default.
+ * With CLAUDE_CONFIG_DIR set, Claude Code keeps .claude.json inside that folder.
  */
 export function resolveRoots({ home = os.homedir(), env = process.env, platform = process.platform } = {}) {
   const claudeDir = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');
@@ -22,17 +23,17 @@ export function resolveRoots({ home = os.homedir(), env = process.env, platform 
     claude: {
       dir: claudeDir,
       projectsDir: path.join(claudeDir, 'projects'),
-      globalConfigFile: env.KMA_CLAUDE_JSON || path.join(home, '.claude.json'),
+      globalConfigFile: env.CLAUDE_CONFIG_DIR ? path.join(claudeDir, '.claude.json') : path.join(home, '.claude.json'),
     },
     cursor: {
-      dir: env.KMA_CURSOR_DIR || path.join(home, '.cursor'),
-      userDir: env.KMA_CURSOR_USER_DIR || path.join(appDataDir(home, 'Cursor', platform), 'User'),
+      dir: path.join(home, '.cursor'),
+      userDir: path.join(appDataDir(home, 'Cursor', platform), 'User'),
     },
     codex: {
       dir: env.CODEX_HOME || path.join(home, '.codex'),
     },
     kiro: {
-      dir: env.KMA_KIRO_DIR || path.join(home, '.kiro'),
+      dir: path.join(home, '.kiro'),
     },
   };
 }
@@ -87,7 +88,7 @@ export function sourceLocationsByScope(roots, workspace) {
       at('workspaceCursorDir', path.join(workspace, '.cursor')),
       at('workspaceCursorRules', path.join(workspace, '.cursorrules')),
     ],
-    codex: [],
+    codex: [at('workspaceCodexDir', path.join(workspace, '.codex'))],
   } : { 'claude-code': [], cursor: [], codex: [] };
   return Object.fromEntries(Object.keys(user).map((source) => [source, { user: user[source], workspace: workspacePaths[source] }]));
 }

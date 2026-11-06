@@ -42,7 +42,37 @@ function claude(home, ws) {
   write(path.join(dir, 'skills', 'badname', 'SKILL.md'), '---\nname: other-name\n---\n# Bad name skill\nBody\n');
   write(path.join(dir, 'commands', 'review.md'), '---\ndescription: Review a pull request\nallowed-tools: Bash(git:*)\n---\nReview PR $ARGUMENTS carefully.\n');
   write(path.join(dir, 'commands', 'git', 'commit.md'), '# Write a commit message\nSummarize staged changes.\n');
-  write(path.join(dir, 'agents', 'reviewer.md'), '---\nname: reviewer\ndescription: Reviews code\ntools: Read, Grep, Bash, CustomTool\nmodel: sonnet\n---\nYou review code.\n');
+  write(path.join(dir, 'agents', 'reviewer.md'), [
+    '---',
+    'name: reviewer',
+    'description: Reviews code',
+    'tools:',
+    '  - Read',
+    '  - Grep',
+    '  - Bash',
+    '  - mcp__github__search',
+    '  - CustomTool',
+    'disallowedTools:',
+    '  - Write',
+    'skills:',
+    '  - pdf',
+    'mcpServers:',
+    '  - github',
+    '  - browser:',
+    '      command: npx',
+    '      args: ["-y", "browser-mcp"]',
+    'hooks:',
+    '  PreToolUse:',
+    '    - matcher: Bash',
+    '      hooks:',
+    '        - type: command',
+    '          command: check-command.sh',
+    'model: claude-sonnet-4.6',
+    'permissionMode: bypassPermissions',
+    '---',
+    'You review code.',
+    '',
+  ].join('\n'));
   write(path.join(dir, 'agents', 'helper.md'), '---\nname: helper\ndescription: Helps\n---\nYou help.\n');
   write(path.join(dir, 'settings.json'), { hooks: {
     PreToolUse: [{ matcher: 'Write|Edit', hooks: [{ type: 'command', command: 'lint.sh', timeout: 30 }] }, { matcher: 'mcp__x__y', hooks: [{ type: 'command', command: 'never.sh' }] }],
@@ -107,6 +137,26 @@ function cursorIde(userDir, ws) {
 
 function cursor(home, ws, userDir) {
   const dir = path.join(home, '.cursor');
+  write(path.join(dir, 'agents', 'security-auditor.md'), [
+    '---',
+    'name: security-auditor',
+    'description: Audits security-sensitive code',
+    'model: inherit',
+    'readonly: true',
+    'is_background: true',
+    '---',
+    'Review code for security defects.',
+    '',
+  ].join('\n'));
+  write(path.join(ws, '.cursor', 'agents', 'planner.md'), [
+    '---',
+    'name: planner',
+    'description: Plans project changes',
+    'model: gpt-5.6-sol',
+    '---',
+    'Create implementation plans for this project.',
+    '',
+  ].join('\n'));
   write(path.join(dir, 'mcp.json'), { mcpServers: { github: { command: 'npx', args: ['other-gh'] }, linear: { url: 'https://linear.example/sse' } } });
   write(path.join(dir, 'hooks.json'), { version: 1, hooks: { beforeShellExecution: [{ command: './guard.sh' }], afterFileEdit: [{ command: './fmt.sh' }], beforeTabRead: [{ command: 'x' }] } });
   write(path.join(dir, 'commands', 'deploy.md'), 'Deploy the app to staging.\n');
@@ -127,6 +177,28 @@ function cursor(home, ws, userDir) {
 
 function codex(home, ws) {
   const dir = path.join(home, '.codex');
+  write(path.join(dir, 'agents', 'reviewer.toml'), [
+    'name = "codex-reviewer"',
+    'description = "Reviews changes for correctness"',
+    'model = "gpt-6-luna"',
+    'model_reasoning_effort = "high"',
+    'developer_instructions = """',
+    'Review changes carefully.',
+    'Report concrete defects only.',
+    '"""',
+    '',
+    '[features]',
+    'shell_tool = false',
+    '',
+    '[[skills.config]]',
+    'name = "legacy-skill"',
+    'enabled = false',
+  ].join('\n'));
+  write(path.join(ws, '.codex', 'agents', 'project-worker.toml'), [
+    'name = "project-worker"',
+    'description = "Implements project changes"',
+    'developer_instructions = "Make small, tested changes."',
+  ].join('\n'));
   write(path.join(dir, 'sessions', '2026', '10', '01', 'rollout-2026-10-01T10-00-00-cdx1.jsonl'), jsonl([
     { type: 'session_meta', payload: { id: 'cdx1', cwd: ws, timestamp: '2026-10-01T09:00:00Z' } },
     { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>cwd</environment_context>' }] } },
@@ -159,15 +231,16 @@ export function makeFixture({ withSources = true } = {}) {
   const ws = path.join(base, 'ws');
   fs.mkdirSync(home, { recursive: true });
   fs.mkdirSync(ws, { recursive: true });
-  const env = { KMA_CURSOR_USER_DIR: path.join(home, 'CursorUser') };
+  // Empty env: the developer's own CLAUDE_CONFIG_DIR / CODEX_HOME must not leak in.
+  const roots = resolveRoots({ home, env: {} });
   if (withSources) {
     claude(home, ws);
-    cursor(home, ws, env.KMA_CURSOR_USER_DIR);
+    cursor(home, ws, roots.cursor.userDir);
     codex(home, ws);
   }
   return {
     base, home, ws,
-    roots: resolveRoots({ home, env, platform: 'linux' }),
+    roots,
     cleanup: () => fs.rmSync(base, { recursive: true, force: true }),
   };
 }

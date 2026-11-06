@@ -5,15 +5,20 @@ import { isDir, isFile, listDir, readJson } from '../common/files.js';
 
 const names = (dir, { dirs = false, ext } = {}) => listDir(dir)
   .filter((e) => (dirs ? isDir(path.join(dir, e.name)) : isFile(path.join(dir, e.name)) && (!ext || e.name.endsWith(ext))))
-  .filter((e) => !e.name.includes('.kma-backup-'))
+  .filter((e) => !e.name.startsWith('._') && !e.name.includes('.kma-backup-'))
   .map((e) => (ext ? e.name.slice(0, -ext.length) : e.name))
   .sort();
+
+function uniqueAgentNames(root) {
+  const dir = path.join(root, 'agents');
+  return [...new Set([...names(dir, { ext: '.json' }), ...names(dir, { ext: '.md' })])].sort();
+}
 
 function inventory(root) {
   return {
     dir: root,
     skills: names(path.join(root, 'skills'), { dirs: true }),
-    agents: names(path.join(root, 'agents'), { ext: '.md' }),
+    agents: uniqueAgentNames(root),
     mcpServers: Object.keys(readJson(path.join(root, 'settings', 'mcp.json'), {})?.mcpServers || {}).sort(),
     hooks: names(path.join(root, 'hooks'), { ext: '.json' }),
     steering: names(path.join(root, 'steering'), { ext: '.md' }),
