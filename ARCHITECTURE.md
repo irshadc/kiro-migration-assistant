@@ -28,6 +28,59 @@
 └──────────────────────────────────────────────────────────────┘
 ```
 
+## Kiro Integration
+
+The project ships two artifacts that Kiro uses together. Neither one calls a remote service at runtime.
+
+| Artifact | Installed to | Loaded by Kiro | Role |
+|----------|--------------|----------------|------|
+| Skill `skills/kiro-migration-assistant/SKILL.md` | `~/.kiro/skills/kiro-migration-assistant/` (copied by `install`) | At session start, matched by its `description` | Drives the guided flow: which tool to call, what to show, when to wait for the user |
+| MCP server `src/cli.js` → `src/server.js` | Entry `{"command":"npx","args":["-y","github:irshadc/kiro-migration-assistant"]}` in `~/.kiro/settings/mcp.json` | At session start, as a stdio child process | Reads source files and writes Kiro files through the 5 tools |
+
+Where the code and the data come from:
+
+| What | From | Network |
+|------|------|---------|
+| Package code | GitHub, fetched by `npx` and cached in the npm cache (`~/.npm/_npx`) | Only when `npx` resolves the package |
+| Source config and sessions | Local folders resolved by `src/roots.js` | None |
+| Written Kiro files | `~/.kiro/...` and `<workspace>/.kiro/...` | None |
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant K as Kiro agent
+    participant S as SKILL.md
+    participant M as MCP server (local, stdio)
+    participant FS as Local files
+    U->>K: Paste README prompt
+    K->>S: Read guide (raw GitHub URL, or git clone fallback)
+    K->>M: npx ... install (registers server, copies skill)
+    Note over K,M: Same session: tools run as `npx ... call <tool>`.<br/>New sessions: native MCP tools.
+    K->>M: scan_sources
+    M->>FS: Read ~/.claude, ~/.cursor, ~/.codex, ~/.kiro
+    M-->>K: Installed tools, counts, Kiro inventory
+    K-->>U: Checklist, wait for picks
+    U->>K: Picks
+    K->>M: migrate_config / import_sessions (dryRun:false, ids)
+    M->>FS: Write ~/.kiro (backups for replaced files)
+    M-->>K: Files written, resume commands
+```
+
+Source folders come from `src/roots.js`: fixed defaults, then environment overrides (`CLAUDE_CONFIG_DIR`, `KMA_CLAUDE_JSON`, `KMA_CURSOR_DIR`, `KMA_CURSOR_USER_DIR`, `CODEX_HOME`, `KMA_KIRO_DIR`), then the per-call `paths` argument (`claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, `codexDir`), which `src/tools.js` adds to every tool and applies with `withSourcePaths`. `paths` changes only where sources are read; the Kiro target stays `KMA_KIRO_DIR` or `~/.kiro`. `scan_sources` returns `locations`, the folders it read and whether each exists, so the skill can show them and ask for a different folder when a tool is not found.
+
+Example `handoff_session` result:
+
+```json
+{
+  "source": "claude-code",
+  "kiroSessionId": "sess_8a3e…",
+  "status": "created",
+  "turns": 42,
+  "omittedTurns": 0,
+  "resumeCommand": "cd '/home/me/app' && kiro-cli chat --v3 --resume-id sess_8a3e…"
+}
+```
+
 ## Three-Tier Architecture
 
 | Tier | Layer | Components | Purpose |
@@ -57,7 +110,7 @@
 | Cursor | `src/sources/cursor/*` | Node + `node:sqlite` | IDE composer DB, agent store/transcripts, config | registry |
 | Codex | `src/sources/codex/*` | Node | Rollout JSONL, `config.toml` subset parser | registry |
 | Kiro IDE | `src/sources/kiro/config.js` | Node | Finds `*.kiro.hook` (opt-in source `kiro`, not in the defaults) | registry |
-| Roots | `src/roots.js` | Node | All paths; env overrides | every adapter |
+| Roots | `src/roots.js` | Node | All paths; env overrides; per-call `paths` (`withSourcePaths`); `sourceLocations` for scan output | every adapter, every tool |
 
 ## Project Structure
 

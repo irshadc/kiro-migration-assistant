@@ -54,3 +54,11 @@ config and sessions into Kiro (V3 session store only).
 - [x] Verified with kiro-cli 2.26.1: V3 lists + resumes V2 sessions by id (HERON-58 probe) and upgrades V2 JSON agents in place (`.json.bak`, allowedTools -> permissions). So no V2 session/agent migrator was shipped (built, then removed).
 - [ ] Converted hook files match the V3 schema read from the bundle, but no hook (converted or hand-written) fired in headless `--no-interactive` runs, so runtime firing is unverified.
 - [x] 57 unit/CLI/protocol tests, 4 e2e tests against real kiro-cli pass.
+
+## v0.4.0: README overview, kma shortcut, source folders (2026-11-06)
+- [x] README: "What It Does" now lists what it copies, `kma:` prompts per task, and the three ways to run it (guided prompt, short prompts/templates, CLI) before the technical Features table. Templates use `kma:`.
+- [x] README "How It Works" + ARCHITECTURE "Kiro Integration": skill + local stdio MCP server; GitHub only supplies code via npx; data stays local; first-session CLI fallback.
+- [x] `kma` short name in the skill description and body; plain `kma` runs the guided migration.
+- [x] `scan_sources` returns `locations` (folders read + exists). Skill step 1 shows "Reading from", asks about tools not found, and offers a different path.
+- [x] Every tool accepts optional `paths` (`claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, `codexDir`; absolute or `~/`); Kiro target unchanged. Env vars still work.
+- [x] Tests: 60 unit (3 new in test/source-paths.test.js), 5 e2e (new: `kma:` prompt with a relocated Claude folder).

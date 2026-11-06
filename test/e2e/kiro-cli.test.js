@@ -100,3 +100,28 @@ test('a Kiro agent runs the guided migration from the README prompt', { skip: !E
   const bucket = path.join(fixtureKiro, 'sessions', bucketFor(fx.ws));
   assert.equal(fs.readdirSync(bucket).filter((d) => d.startsWith('sess_')).length, 5, '5 sessions imported under the project folder');
 });
+
+test('a "kma:" prompt runs the skill, shows scanned folders and reads a relocated tool', { skip: !ENABLED, timeout: TIMEOUT_MS * 2 }, async (t) => {
+  const fx = makeFixture();
+  t.after(() => { removeBucket(fx.ws); fx.cleanup(); });
+  const moved = path.join(fx.base, 'elsewhere', 'claude-data');
+  fs.mkdirSync(path.dirname(moved), { recursive: true });
+  fs.renameSync(path.join(fx.home, '.claude'), moved);
+  const fixtureKiro = path.join(fx.home, '.kiro');
+  const kiroWs = path.join(fx.ws, '.kiro');
+  fs.mkdirSync(path.join(kiroWs, 'settings'), { recursive: true });
+  fs.writeFileSync(path.join(kiroWs, 'settings', 'mcp.json'), JSON.stringify({ mcpServers: {
+    'kiro-migration-assistant': { command: process.execPath, args: [path.join(REPO, 'src', 'server.js')],
+      env: { HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser'), KMA_KIRO_DIR: fixtureKiro } },
+  } }));
+  fs.cpSync(path.join(REPO, 'skills'), path.join(kiroWs, 'skills'), { recursive: true });
+  kiro(fx.ws, [`kma: preview only, change nothing. My Claude Code data is in ${moved}. `
+    + 'Show the table of tools with the folders you read from, then stop.']);
+  const bucket = path.join(KIRO_DIR, 'sessions', bucketFor(fx.ws));
+  const out = fs.readdirSync(bucket).filter((d) => d.startsWith('sess_'))
+    .flatMap((d) => assistantSays(path.join(bucket, d, 'messages.jsonl'))).join('\n');
+  // The agent may shorten long temp paths with "...", so match the path's tail.
+  assert.ok(out.includes('elsewhere/claude-data'), `reply shows the relocated folder. Reply was:\n${out.slice(0, 3000)}`);
+  assert.match(out, /Reading from/i);
+  assert.ok(!fs.existsSync(path.join(fixtureKiro, 'agents')), 'preview wrote nothing');
+});

@@ -1,5 +1,6 @@
 // Locations of every tool's data. All paths derive from one object so tests
 // (and users with non-default installs) can point the migrator anywhere.
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -33,5 +34,41 @@ export function resolveRoots({ home = os.homedir(), env = process.env, platform 
     kiro: {
       dir: env.KMA_KIRO_DIR || path.join(home, '.kiro'),
     },
+  };
+}
+
+// Per-call source folder overrides, the `paths` tool argument.
+export const SOURCE_PATH_KEYS = ['claudeDir', 'claudeJson', 'cursorDir', 'cursorUserDir', 'codexDir'];
+
+function expandPath(home, key, value) {
+  const expanded = value === '~' ? home : value.startsWith('~/') ? path.join(home, value.slice(2)) : value;
+  if (!path.isAbsolute(expanded)) throw new Error(`paths.${key} must be an absolute path or start with ~/ (got "${value}")`);
+  return path.resolve(expanded);
+}
+
+/** Return roots with the given source folders replaced. The Kiro target is never changed here. */
+export function withSourcePaths(roots, paths) {
+  if (!paths) return roots;
+  const p = Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, expandPath(roots.home, k, v)]));
+  const claudeDir = p.claudeDir || roots.claude.dir;
+  return {
+    ...roots,
+    claude: {
+      dir: claudeDir,
+      projectsDir: path.join(claudeDir, 'projects'),
+      globalConfigFile: p.claudeJson || roots.claude.globalConfigFile,
+    },
+    cursor: { dir: p.cursorDir || roots.cursor.dir, userDir: p.cursorUserDir || roots.cursor.userDir },
+    codex: { dir: p.codexDir || roots.codex.dir },
+  };
+}
+
+/** The folders each source tool is read from, and whether each exists. */
+export function sourceLocations(roots) {
+  const at = (key, p) => ({ key, path: p, exists: fs.existsSync(p) });
+  return {
+    'claude-code': [at('claudeDir', roots.claude.dir), at('claudeJson', roots.claude.globalConfigFile)],
+    cursor: [at('cursorDir', roots.cursor.dir), at('cursorUserDir', roots.cursor.userDir)],
+    codex: [at('codexDir', roots.codex.dir)],
   };
 }

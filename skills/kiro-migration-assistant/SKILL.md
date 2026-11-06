@@ -1,11 +1,13 @@
 ---
 name: kiro-migration-assistant
-description: Step-by-step guide that moves a developer from Claude Code, Cursor or Codex to Kiro. Detects which tools are installed, shows what Kiro already has, lets the user tick which skills, commands, agents, MCP servers, hooks, rules and sessions to bring over, then applies only those. Also converts Kiro IDE hooks for kiro-cli V3 and hands off a live session by id. Use when the user mentions migrating, porting, importing or switching from Claude Code, Cursor or Codex, or wants to resume another agent's session in Kiro.
+description: Kiro Migration Assistant, short name "kma". Step-by-step guide that moves a developer from Claude Code, Cursor or Codex to Kiro. Shows which tools are installed and the folders it reads them from, shows what Kiro already has, lets the user tick which skills, commands, agents, MCP servers, hooks, rules and sessions to bring over, then applies only those. Also converts Kiro IDE hooks for kiro-cli V3 and hands off a live session by id. Use when the user says "kma", or mentions migrating, porting, importing or switching from Claude Code, Cursor or Codex, or wants to resume another agent's session in Kiro.
 ---
 
-# Kiro Migration Assistant
+# Kiro Migration Assistant (kma)
 
 You are guiding the user one step at a time. At every step: show what you found, say what you suggest, and wait for their choice. Never move anything they did not pick.
+
+A request starting with `kma` (for example `kma: preview`, `kma: import my last 5 sessions`, `kma: hand off claude session <id>`) means this skill. Read the rest of the request as the task: `kma` alone, or `kma: migrate`, runs the guided migration below.
 
 Tools (from the `kiro-migration-assistant` MCP server):
 
@@ -16,6 +18,8 @@ Tools (from the `kiro-migration-assistant` MCP server):
 | `list_sessions` | no | Sessions with ids, titles, folders. |
 | `import_sessions` | only with `dryRun:false` | Copy past sessions into Kiro. |
 | `handoff_session` | yes | Continue one session in Kiro now. |
+
+Every tool also takes an optional `paths` object to read a tool from a non-default folder (see Step 1).
 
 ## Step 0: check the setup
 
@@ -38,11 +42,15 @@ Use this for any "migrate", "move", "port" or "switch" request, including the RE
 
 Call `scan_sources`. Show one table:
 
-| Tool | Installed | Skills | Commands | Agents | MCP servers | Hooks | Rules | Sessions |
+| Tool | Installed | Reading from | Skills | Commands | Agents | MCP servers | Hooks | Rules | Sessions |
 
-Use `detected`, `config.<tool>` counts and `sessions.<source>.count` (Cursor has two session sources, `cursor` and `cursor-agent`; add them). `countIsAtLeast` means "N or more". Below it, one line on what Kiro already has (`kiro.user`, `kiro.workspace`: skills, agents, MCP servers, hooks, steering).
+Use `detected`, `config.<tool>` counts and `sessions.<source>.count` (Cursor has two session sources, `cursor` and `cursor-agent`; add them). `countIsAtLeast` means "N or more". "Reading from" = the `locations.<tool>` paths, each marked found or not found (`exists`). Below it, one line on what Kiro already has (`kiro.user`, `kiro.workspace`: skills, agents, MCP servers, hooks, steering), and the Kiro folder it writes to (`kiroDir`).
 
-Ask which tools to migrate from. Suggest every installed tool. Skip tools that are not installed without asking.
+Then ask two things in one message:
+- Which tools to migrate from. Suggest every installed tool.
+- Whether any tool lives in a different folder: name each tool that was not found and its path, for example "Claude Code: not found at `~/.claude`. Is it somewhere else?" Also offer: "Want to import from a different path? Give me the folder."
+
+If the user gives a folder, call `scan_sources` again with `paths` (`claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, `codexDir`; absolute or `~/` paths) and show the table again. Pass the same `paths` to EVERY later tool call in this migration, or the tools go back to the default folders. Skip tools that are still not found without asking again.
 
 ### Step 2: pick the settings
 

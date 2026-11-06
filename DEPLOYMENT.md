@@ -30,6 +30,8 @@ None. The server has no account-specific settings.
 | `CODEX_HOME` | `~/.codex` | Codex home (Codex's own variable) |
 | `KMA_KIRO_DIR` | `~/.kiro` | Kiro target dir |
 
+Without a variable, you can tell Kiro the folder during the guided flow. The skill then passes it to every tool as `paths` (`claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, `codexDir`). In CLI mode, add it to the JSON arguments, for example `'{"paths":{"claudeDir":"/data/claude"}}'`. A `paths` value takes precedence over the variable for that call.
+
 ## Local Development
 
 ### Install from GitHub (users)

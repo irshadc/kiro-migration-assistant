@@ -1,6 +1,6 @@
 {
   "name": "kiro-migration-assistant",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP server and Kiro skill that migrates Claude Code, Cursor and Codex skills, agents, MCP servers, hooks, rules and sessions into Kiro (V3 sessions).",
   "type": "module",
   "bin": {

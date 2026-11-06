@@ -5,6 +5,10 @@ import { CONFIG_KINDS, applyConfigPlan, discover, planConfigMigration, publicEnt
 import { kiroInventory } from './config/kiro-inventory.js';
 import { DEFAULT_MAX_CHARS, handoffSession, importSessions, listAllSessions } from './sessions/import-sessions.js';
 import { CONFIG_SOURCES, DEFAULT_CONFIG_SOURCES, DEFAULT_SESSION_SOURCES, SESSION_SOURCES, UPGRADE_CONFIG_SOURCES, sessionSource } from './sources/index.js';
+import { SOURCE_PATH_KEYS, sourceLocations, withSourcePaths } from './roots.js';
+
+const sourcePaths = z.object(Object.fromEntries(SOURCE_PATH_KEYS.map((key) => [key, z.string().min(1).optional()]))).strict().optional()
+  .describe('Read a tool from a non-default folder (absolute or ~/ path). Keys: claudeDir (default ~/.claude), claudeJson (~/.claude.json), cursorDir (~/.cursor), cursorUserDir (Cursor IDE User dir), codexDir (~/.codex). Use when scan_sources shows a tool as not found and the user gives its location. Pass the same paths to every later call.');
 
 const configSources = z.array(z.enum(Object.keys(CONFIG_SOURCES))).optional()
   .describe('Config sources to read: claude-code, cursor, codex, or kiro (Kiro IDE *.kiro.hook files, converted to the hooks/*.json files kiro-cli V3 reads). Default: claude-code, cursor, codex.');
@@ -55,7 +59,7 @@ async function scanSources(roots, { workspace: ws }) {
   const kiroUpgrade = {
     ideHooks: countConfig(discover(roots, { sources: [...UPGRADE_CONFIG_SOURCES], workspace: ws })).kiro?.hook || 0,
   };
-  return { detected, config, sessions, kiro: kiroInventory(roots, { workspace: ws }), kiroUpgrade, kiroDir: roots.kiro.dir };
+  return { detected, locations: sourceLocations(roots), config, sessions, kiro: kiroInventory(roots, { workspace: ws }), kiroUpgrade, kiroDir: roots.kiro.dir };
 }
 
 function migrateConfig(roots, args) {
@@ -64,11 +68,11 @@ function migrateConfig(roots, args) {
   return { dryRun: args.dryRun !== false, summary: summarize(entries), entries: entries.map(publicEntry) };
 }
 
-/** [name, config, handler(roots, args)] for every tool. */
-export const TOOLS = [
+/** [name, config, handler(roots, args)] for every tool, before the shared `paths` argument is added. */
+const BASE_TOOLS = [
   ['scan_sources', {
     title: 'Scan migratable sources',
-    description: 'Find which of Claude Code, Cursor and Codex are on this machine (`detected`), what config (skills, commands, agents, MCP servers, hooks, rules) and how many sessions each has, what Kiro already has (`kiro`), and how many Kiro IDE hooks could be converted for kiro-cli V3 (`kiroUpgrade.ideHooks`). Read-only. Call this first.',
+    description: 'Find which of Claude Code, Cursor and Codex are on this machine (`detected`), the folders each is read from and whether they exist (`locations`), what config (skills, commands, agents, MCP servers, hooks, rules) and how many sessions each has, what Kiro already has (`kiro`), and how many Kiro IDE hooks could be converted for kiro-cli V3 (`kiroUpgrade.ideHooks`). Read-only. Call this first. If a tool lives elsewhere, call again with `paths`.',
     inputSchema: { workspace },
     annotations: { readOnlyHint: true },
   }, scanSources],
@@ -126,6 +130,13 @@ export const TOOLS = [
     annotations: { destructiveHint: false, idempotentHint: true },
   }, (roots, { sessionId, ...rest }) => handoffSession(roots, { id: sessionId, ...rest })],
 ];
+
+/** Every tool, each accepting `paths` to read source tools from non-default folders. */
+export const TOOLS = BASE_TOOLS.map(([name, config, handler]) => [
+  name,
+  { ...config, inputSchema: { ...config.inputSchema, paths: sourcePaths } },
+  (roots, { paths, ...args }) => handler(withSourcePaths(roots, paths), args),
+]);
 
 export function registerTools(server, roots) {
   for (const [name, config, handler] of TOOLS) {
