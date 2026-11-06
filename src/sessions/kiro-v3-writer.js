@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { isFile, readJson, readText, writeAtomic, writeJsonAtomic } from '../common/files.js';
+import { platformPath } from '../common/platform.js';
 
 export const GLOBAL_BUCKET = '_global';
 const BUCKET_HEX_LENGTH = 16;
@@ -15,7 +16,8 @@ const IMPORT_NAMESPACE = 'kiro-migration-assistant/v1';
 
 /** Same normalization the engine applies before hashing a workspace path. */
 export function normalizeWorkspacePath(p, platform = process.platform) {
-  let s = (path.isAbsolute(p) ? p : path.resolve(p)).replace(/\\/g, '/');
+  const host = platformPath(platform);
+  let s = (host.isAbsolute(p) ? p : host.resolve(p)).replace(/\\/g, '/');
   const isUnc = platform === 'win32' && s.startsWith('//');
   s = path.posix.normalize(s);
   if (isUnc && !s.startsWith('//')) s = `/${s}`;
@@ -24,6 +26,12 @@ export function normalizeWorkspacePath(p, platform = process.platform) {
     if (trimmed.length > 0 && !/^[A-Za-z]:$/.test(trimmed)) s = trimmed;
   }
   return platform === 'win32' ? s.toLowerCase() : s;
+}
+
+/** True when two folder paths name the same workspace (case-insensitive and slash-agnostic on Windows). */
+export function sameWorkspacePath(a, b, platform = process.platform) {
+  if (!a || !b) return false;
+  return normalizeWorkspacePath(a, platform) === normalizeWorkspacePath(b, platform);
 }
 
 export function bucketFor(cwd, platform = process.platform) {

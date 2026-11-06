@@ -2,6 +2,7 @@
 // and hand off a live session so `kiro-cli chat --v3 --resume-id` continues it.
 import { DEFAULT_SESSION_SOURCES, sessionSource } from '../sources/index.js';
 import { bucketFor, inspectExisting, kiroSessionIdFor, sessionDir, writeSession } from './kiro-v3-writer.js';
+import { inDirectory } from '../common/platform.js';
 import { fitBudget, toMs, toTurns } from './transcript.js';
 
 /** ~100k tokens: leaves room in every Kiro model's window for the next turns. */
@@ -20,11 +21,10 @@ export async function listAllSessions(roots, { sources = DEFAULT_SESSION_SOURCES
   return { sessions: all.slice(0, limit), errors };
 }
 
-const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-
-export function resumeCommand(kiroId, cwd) {
+/** The terminal command that resumes `kiroId` from `cwd`, in the user's default shell. */
+export function resumeCommand(kiroId, cwd, platform = process.platform) {
   const resume = `kiro-cli chat --v3 --resume-id ${kiroId}`;
-  return cwd ? `cd ${shellQuote(cwd)} && ${resume}` : resume;
+  return cwd ? inDirectory(cwd, resume, platform) : resume;
 }
 
 /** Turn a read session into the turns that get written (provenance + budget). */
@@ -58,13 +58,13 @@ export async function importSession(roots, { source, id, cwd, fallbackCwd, maxCh
   let status = existing.exists ? 'updated' : 'created';
   if (existing.continuedInKiro) {
     if (!fork) {
-      return { source, id, kiroSessionId: kiroId, status: 'kept', cwd: targetCwd, resumeCommand: resumeCommand(kiroId, targetCwd),
+      return { source, id, kiroSessionId: kiroId, status: 'kept', cwd: targetCwd, resumeCommand: resumeCommand(kiroId, targetCwd, roots.platform),
         message: 'already continued in Kiro; left untouched. Pass fork=true to import a fresh copy.' };
     }
     kiroId = kiroSessionIdFor(source, `${id}#fork-${now}`);
     status = 'forked';
   }
-  const result = { source, id, kiroSessionId: kiroId, status, cwd: targetCwd, turns: turns.length, omittedTurns: omitted, title: session.meta.title, resumeCommand: resumeCommand(kiroId, targetCwd) };
+  const result = { source, id, kiroSessionId: kiroId, status, cwd: targetCwd, turns: turns.length, omittedTurns: omitted, title: session.meta.title, resumeCommand: resumeCommand(kiroId, targetCwd, roots.platform) };
   if (dryRun) return { ...result, status: `would-${status === 'forked' ? 'fork' : status === 'created' ? 'create' : 'update'}` };
   writeSession({
     kiroDir: roots.kiro.dir,

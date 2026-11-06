@@ -4,6 +4,7 @@
 import path from 'node:path';
 import { isDir, listDir, mtimeMs, peekJsonl, readJsonl } from '../../common/files.js';
 import { cleanUserText, contentToText } from '../../sessions/transcript.js';
+import { sameWorkspacePath } from '../../sessions/kiro-v3-writer.js';
 
 export const SOURCE = 'codex';
 const TITLE_MAX = 120;
@@ -55,7 +56,7 @@ export async function listSessions(roots, { cwd, limit = 50 } = {}) {
   for (const { f } of files) {
     if (out.length >= limit) break;
     const d = await describe(f);
-    if (d && (!cwd || d.cwd === cwd)) out.push(d);
+    if (d && (!cwd || sameWorkspacePath(d.cwd, cwd, roots.platform))) out.push(d);
   }
   return out;
 }

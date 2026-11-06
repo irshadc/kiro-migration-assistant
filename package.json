@@ -14,8 +14,12 @@
   ],
   "scripts": {
     "start": "node src/cli.js",
-    "test": "node --test test/*.test.js",
-    "test:e2e": "KMA_E2E=1 node --test test/e2e/*.test.js"
+    "test": "node --test test/*.test.js test/platform/*.test.js",
+    "test:e2e": "node --test test/e2e/*.test.js",
+    "test:platform": "node --test test/platform/*.test.js",
+    "test:windows": "node --test test/platform/windows.test.js",
+    "test:macos": "node --test test/platform/macos.test.js",
+    "test:linux": "node --test test/platform/linux.test.js"
   },
   "engines": {
     "node": ">=22.13.0"

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bucketFor, kiroSessionIdFor } from '../src/sessions/kiro-v3-writer.js';
 import { handoffSession, importSession, importSessions, listAllSessions, prepareTurns, resumeCommand } from '../src/sessions/import-sessions.js';
+import { inDirectory } from '../src/common/platform.js';
 import { makeFixture } from './helpers/fixtures.js';
 
 function records(fx, cwd, id) {
@@ -27,7 +28,7 @@ test('import writes an alternating V3 transcript with provenance and a closing t
   const res = await importSession(fx.roots, { source: 'claude-code', id: 'claude-s1' });
   assert.equal(res.status, 'created');
   assert.equal(res.kiroSessionId, kiroSessionIdFor('claude-code', 'claude-s1'));
-  assert.equal(res.resumeCommand, `cd '${fx.ws}' && kiro-cli chat --v3 --resume-id ${res.kiroSessionId}`);
+  assert.equal(res.resumeCommand, inDirectory(fx.ws, `kiro-cli chat --v3 --resume-id ${res.kiroSessionId}`, process.platform));
   const recs = records(fx, fx.ws, res.kiroSessionId);
   const said = recs.filter((r) => r.payload.type === 'user' || r.payload.type === 'assistant');
   assert.deepEqual(said.map((r) => r.payload.type), ['user', 'assistant']);
@@ -135,5 +136,5 @@ test('handoff picks the most recent session for the cwd', async (t) => {
 });
 
 test('resume command quotes paths for the shell', () => {
-  assert.equal(resumeCommand('sess_x', "/a b/it's"), `cd '/a b/it'\\''s' && kiro-cli chat --v3 --resume-id sess_x`);
+  assert.equal(resumeCommand('sess_x', "/a b/it's", 'linux'), `cd '/a b/it'\\''s' && kiro-cli chat --v3 --resume-id sess_x`);
 });

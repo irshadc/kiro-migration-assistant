@@ -8,6 +8,8 @@ import path from 'node:path';
 import { isDir, isFile, listDir, mtimeMs, readJsonl } from '../../common/files.js';
 import { asText, withReadOnlyDb } from '../../common/sqlite.js';
 import { cleanUserText, contentToText } from '../../sessions/transcript.js';
+import { sameWorkspacePath } from '../../sessions/kiro-v3-writer.js';
+import { isWindows, platformPath } from '../../common/platform.js';
 
 export const SOURCE = 'cursor-agent';
 const TITLE_MAX = 120;
@@ -15,20 +17,27 @@ const HASH_BYTES = 32;
 const TAG_MESSAGE = 0x0a;
 const TAG_CHILD = 0x12;
 
-/** "home-me-code-app" -> "/home/me/code/app", resolving '-' ambiguity against disk. */
-export function decodeProjectDir(name) {
-  const naive = `/${name.replace(/-/g, '/')}`;
-  if (fs.existsSync(naive)) return naive;
-  const parts = name.split('-');
+/**
+ * "home-me-code-app" -> "/home/me/code/app", resolving '-' ambiguity against disk.
+ * On Windows a leading drive letter ("c-Users-me" or "C--Users-me") becomes "C:\".
+ */
+export function decodeProjectDir(name, { platform = process.platform, exists = fs.existsSync } = {}) {
+  const p = platformPath(platform);
+  const drive = isWindows(platform) ? /^([A-Za-z])-+(.*)$/.exec(name) : null;
+  const root = drive ? `${drive[1].toUpperCase()}:\\` : p.sep;
+  const rest = drive ? drive[2] : name;
+  const naive = root + rest.split('-').join(p.sep);
+  if (exists(naive)) return naive;
+  const parts = rest.split('-');
   const search = (base, i) => {
     if (i === parts.length) return base;
     for (let j = parts.length; j > i; j--) {
-      const candidate = path.join(base, parts.slice(i, j).join('-'));
-      if (fs.existsSync(candidate)) { const hit = search(candidate, j); if (hit) return hit; }
+      const candidate = p.join(base, parts.slice(i, j).join('-'));
+      if (exists(candidate)) { const hit = search(candidate, j); if (hit) return hit; }
     }
     return null;
   };
-  return search('/', 0) || naive;
+  return search(root, 0) || naive;
 }
 
 function transcriptEntries(roots) {
@@ -40,8 +49,8 @@ function transcriptEntries(roots) {
     for (const e of listDir(dir)) {
       const flat = path.join(dir, e.name);
       const nested = path.join(flat, `${e.name}.jsonl`);
-      if (e.name.endsWith('.jsonl')) out.push({ id: e.name.slice(0, -6), file: flat, projectDir: proj.name, kind: 'transcript' });
-      else if (isFile(nested)) out.push({ id: e.name, file: nested, projectDir: proj.name, kind: 'transcript' });
+      if (e.name.endsWith('.jsonl')) out.push({ id: e.name.slice(0, -6), file: flat, projectDir: proj.name, platform: roots.platform, kind: 'transcript' });
+      else if (isFile(nested)) out.push({ id: e.name, file: nested, projectDir: proj.name, platform: roots.platform, kind: 'transcript' });
     }
   }
   return out;
@@ -142,7 +151,7 @@ function allEntries(roots) {
 async function load(entry) {
   if (entry.kind === 'transcript') {
     const messages = await readTranscript(entry.file);
-    return { messages, cwd: decodeProjectDir(entry.projectDir), title: null, createdAt: null };
+    return { messages, cwd: decodeProjectDir(entry.projectDir, { platform: entry.platform }), title: null, createdAt: null };
   }
   return withReadOnlyDb(entry.file, (db) => {
     const meta = readStoreMeta(db) || {};
@@ -171,8 +180,8 @@ export async function listSessions(roots, { cwd, limit = 50 } = {}) {
   const out = [];
   for (const entry of entries) {
     if (out.length >= limit) break;
-    const entryCwd = entry.kind === 'transcript' ? decodeProjectDir(entry.projectDir) : null;
-    if (cwd && entryCwd !== cwd) continue;
+    const entryCwd = entry.kind === 'transcript' ? decodeProjectDir(entry.projectDir, { platform: entry.platform }) : null;
+    if (cwd && !sameWorkspacePath(entryCwd, cwd, roots.platform)) continue;
     let info;
     try { info = await peek(entry); } catch { continue; }
     if (!info) continue;

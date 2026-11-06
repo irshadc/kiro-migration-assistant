@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-function appDataDir(home, appName, platform) {
+function appDataDir(home, appName, platform, env) {
   if (platform === 'darwin') return path.join(home, 'Library', 'Application Support', appName);
-  if (platform === 'win32') return path.join(home, 'AppData', 'Roaming', appName);
+  // %APPDATA% is where Windows apps actually keep roaming data; it differs from the default under redirected profiles.
+  if (platform === 'win32') return path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'), appName);
   return path.join(home, '.config', appName);
 }
 
@@ -27,7 +28,7 @@ export function resolveRoots({ home = os.homedir(), env = process.env, platform 
     },
     cursor: {
       dir: path.join(home, '.cursor'),
-      userDir: path.join(appDataDir(home, 'Cursor', platform), 'User'),
+      userDir: path.join(appDataDir(home, 'Cursor', platform, env), 'User'),
     },
     codex: {
       dir: env.CODEX_HOME || path.join(home, '.codex'),

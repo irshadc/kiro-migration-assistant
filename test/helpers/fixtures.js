@@ -135,6 +135,11 @@ function cursorIde(userDir, ws) {
   wdb.close();
 }
 
+/** Folder name Cursor Agent uses for a project: separators (and a Windows drive colon) become '-'. */
+export function cursorProjectDirName(dir) {
+  return dir.replace(/^[\\/]+/, '').replace(/[:\\/]+/g, '-');
+}
+
 function cursor(home, ws, userDir) {
   const dir = path.join(home, '.cursor');
   write(path.join(dir, 'agents', 'security-auditor.md'), [
@@ -165,7 +170,7 @@ function cursor(home, ws, userDir) {
   write(path.join(ws, '.cursor', 'rules', 'db.mdc'), '---\ndescription: Database conventions\n---\nUse migrations.\n');
   write(path.join(ws, '.cursor', 'rules', 'misc.mdc'), 'No front matter rule.\n');
   write(path.join(ws, '.cursorrules'), 'Legacy cursor rules.\n');
-  const t1 = path.join(dir, 'projects', ws.slice(1).replace(/\//g, '-'), 'agent-transcripts', 't1.jsonl');
+  const t1 = path.join(dir, 'projects', cursorProjectDirName(ws), 'agent-transcripts', 't1.jsonl');
   write(t1, jsonl([
     { role: 'user', message: { content: [{ type: 'text', text: '<user_query>Explain utils.js</user_query><attached_files><file path="utils.js"/></attached_files>' }] } },
     { role: 'assistant', message: { content: [{ type: 'text', text: 'utils.js exports helpers.' }] } },
@@ -222,6 +227,16 @@ function codex(home, ws) {
   ].join('\n'));
   write(path.join(dir, 'AGENTS.md'), 'Codex global instructions.\n');
   write(path.join(dir, 'prompts', 'fix.md'), 'Fix: $1\n');
+}
+
+/**
+ * Environment for a child process that must see `home` as the user's home.
+ * os.homedir() reads USERPROFILE on Windows and HOME elsewhere, so both are set;
+ * without USERPROFILE a Windows child would read and write the REAL profile.
+ * SystemRoot is passed through because Node on Windows needs it to start.
+ */
+export function fixtureEnv(home) {
+  return { PATH: process.env.PATH, HOME: home, USERPROFILE: home, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) };
 }
 
 /** Create a fresh fixture home. Call `cleanup()` when done. */

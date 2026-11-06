@@ -4,19 +4,35 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { copyDir, isFile, readJson, writeJsonAtomic } from './common/files.js';
+import { isWindows } from './common/platform.js';
 
 export const SERVER_NAME = 'kiro-migration-assistant';
 export const PACKAGE_SPEC = 'github:irshadc/kiro-migration-assistant';
 const SKILL_DIR = fileURLToPath(new URL('../skills/kiro-migration-assistant', import.meta.url));
 
-export const serverEntry = () => ({ command: 'npx', args: ['-y', PACKAGE_SPEC] });
+/**
+ * The mcp.json entry that starts this server. On Windows npx is `npx.cmd`, which a
+ * client that spawns without a shell cannot find, so it runs through `cmd /c`.
+ */
+export const serverEntry = (platform = process.platform) => (isWindows(platform)
+  ? { command: 'cmd', args: ['/c', 'npx', '-y', PACKAGE_SPEC] }
+  : { command: 'npx', args: ['-y', PACKAGE_SPEC] });
 
-function registerServer(mcpFile, now) {
+/**
+ * How to run one tool from the user's default shell. PowerShell hands npx.cmd its
+ * arguments with bare double quotes stripped, so on Windows each quote is written \".
+ */
+export function callHint(platform = process.platform) {
+  const call = `npx -y ${PACKAGE_SPEC} call <tool>`;
+  return isWindows(platform) ? `${call} '<json args, every " written as \\">'` : `${call} '<json args>'`;
+}
+
+function registerServer(mcpFile, now, platform) {
   const exists = isFile(mcpFile);
   const config = exists ? readJson(mcpFile) : {};
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error(`${mcpFile} must hold a JSON object; fix it, then re-run install`);
   const servers = config.mcpServers ?? {};
-  const wanted = serverEntry();
+  const wanted = serverEntry(platform);
   if (JSON.stringify(servers[SERVER_NAME]) === JSON.stringify(wanted)) return { file: mcpFile, status: 'unchanged' };
   let backup = null;
   if (exists) {
@@ -28,13 +44,12 @@ function registerServer(mcpFile, now) {
 }
 
 export function install(roots, { now = Date.now() } = {}) {
-  const mcp = registerServer(path.join(roots.kiro.dir, 'settings', 'mcp.json'), now);
+  const mcp = registerServer(path.join(roots.kiro.dir, 'settings', 'mcp.json'), now, roots.platform);
   const skillTarget = path.join(roots.kiro.dir, 'skills', SERVER_NAME);
   const files = copyDir(SKILL_DIR, skillTarget);
   return {
     mcp,
     skill: { dir: skillTarget, files },
-    next: 'Start a new Kiro session to load the MCP tools. In the current session, run the same tools with: '
-      + `npx -y ${PACKAGE_SPEC} call <tool> '<json args>'`,
+    next: `Start a new Kiro session to load the MCP tools. In the current session, run the same tools with: ${callHint(roots.platform)}`,
   };
 }

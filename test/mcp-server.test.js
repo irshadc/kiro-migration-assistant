@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { makeFixture } from './helpers/fixtures.js';
+import { fixtureEnv, makeFixture } from './helpers/fixtures.js';
 
 const SERVER = fileURLToPath(new URL('../src/server.js', import.meta.url));
 
@@ -14,7 +14,7 @@ async function connect(fx) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER],
-    env: { PATH: process.env.PATH, HOME: fx.home },
+    env: fixtureEnv(fx.home),
     stderr: 'pipe',
   });
   const client = new Client({ name: 'kma-test', version: '0.0.0' });

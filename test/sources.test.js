@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SESSION_SOURCES, sessionSource } from '../src/sources/index.js';
 import { decodeProjectDir } from '../src/sources/cursor/agent-sessions.js';
-import { makeFixture } from './helpers/fixtures.js';
+import { cursorProjectDirName, makeFixture } from './helpers/fixtures.js';
 
 test('claude-code: lists newest first, filters by cwd, skips sidechain/meta/bad lines', async (t) => {
   const fx = makeFixture();
@@ -82,5 +82,5 @@ test('decodeProjectDir resolves dashes that belong to real directory names', (t)
   t.after(fx.cleanup);
   const dir = path.join(fx.ws, 'my-app');
   fs.mkdirSync(dir, { recursive: true });
-  assert.equal(decodeProjectDir(dir.slice(1).replace(/\//g, '-')), dir);
+  assert.equal(decodeProjectDir(cursorProjectDirName(dir)), dir);
 });

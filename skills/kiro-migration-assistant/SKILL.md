@@ -45,6 +45,8 @@ Do not silently turn guided mode into fast mode.
 npx -y github:irshadc/kiro-migration-assistant call <tool> '<json args>'
 ```
 
+On Windows PowerShell, write each `"` inside the JSON as `\"`.
+
 4. Use the current project's absolute path as `workspace` in every applicable call.
 
 If Node.js is missing or too old, give the matching command and stop:

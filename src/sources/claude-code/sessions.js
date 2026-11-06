@@ -5,6 +5,8 @@
 import path from 'node:path';
 import { isDir, isFile, listDir, mtimeMs, peekJsonl, readJsonl } from '../../common/files.js';
 import { cleanUserText, contentToText } from '../../sessions/transcript.js';
+import { normalizeWorkspacePath } from '../../sessions/kiro-v3-writer.js';
+import { isWindows } from '../../common/platform.js';
 
 export const SOURCE = 'claude-code';
 const PEEK_LINES = 40;
@@ -59,8 +61,10 @@ async function describe(entry) {
 export async function listSessions(roots, { cwd, limit = 50 } = {}) {
   let entries = sessionFiles(roots).map((e) => ({ ...e, mtime: mtimeMs(e.file) }));
   if (cwd) {
-    const encoded = encodeProjectDir(cwd);
-    entries = entries.filter((e) => e.projectDir === encoded);
+    // Normalizing first makes the Windows match case-insensitive (it lowercases) and ignores a trailing slash.
+    const encoded = encodeProjectDir(normalizeWorkspacePath(cwd, roots.platform));
+    const key = (dir) => (isWindows(roots.platform) ? dir.toLowerCase() : dir);
+    entries = entries.filter((e) => key(e.projectDir) === encoded);
   }
   entries.sort((a, b) => b.mtime - a.mtime);
   return Promise.all(entries.slice(0, limit).map(describe));

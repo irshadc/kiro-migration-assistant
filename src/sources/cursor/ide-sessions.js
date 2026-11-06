@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { isFile, listDir, readJson } from '../../common/files.js';
 import { asText, withReadOnlyDb } from '../../common/sqlite.js';
 import { cleanUserText, toMs } from '../../sessions/transcript.js';
+import { sameWorkspacePath } from '../../sessions/kiro-v3-writer.js';
 
 export const SOURCE = 'cursor';
 const USER_BUBBLE = 1;
@@ -65,7 +66,7 @@ export async function listSessions(roots, { cwd, limit = 50 } = {}) {
         path: dbFile,
       };
     })
-    .filter((s) => !cwd || s.cwd === cwd)
+    .filter((s) => !cwd || sameWorkspacePath(s.cwd, cwd, roots.platform))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, limit);
 }

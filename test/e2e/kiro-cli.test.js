@@ -1,4 +1,5 @@
 // End-to-end against a real, logged-in kiro-cli (V3 engine). Opt-in:
+//   npm run test:e2e        (any OS)
 //   KMA_E2E=1 node --test test/e2e/
 // Source data comes from the fixture home; sessions are written to the REAL
 // ~/.kiro under a bucket unique to the fixture workspace, removed afterwards.
@@ -14,7 +15,8 @@ import { bucketFor } from '../../src/sessions/kiro-v3-writer.js';
 import { importSession, importSessions } from '../../src/sessions/import-sessions.js';
 import { makeFixture } from '../helpers/fixtures.js';
 
-const ENABLED = process.env.KMA_E2E === '1';
+// npm sets npm_lifecycle_event on every OS, so the npm script needs no shell-specific VAR=1 prefix.
+const ENABLED = process.env.KMA_E2E === '1' || process.env.npm_lifecycle_event === 'test:e2e';
 const KIRO_DIR = path.join(os.homedir(), '.kiro');
 const TIMEOUT_MS = 240_000;
 const REPO = fileURLToPath(new URL('../..', import.meta.url));

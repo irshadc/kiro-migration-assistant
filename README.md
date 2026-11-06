@@ -28,9 +28,8 @@ Supported source matrix:
 | Source | Skills | Commands or prompts | Agents | MCP servers | Hooks | Rules | Sessions |
 |--------|--------|---------------------|--------|-------------|-------|-------|----------|
 | Claude Code | Yes | Yes | Yes | Yes | Yes | User and project | Yes |
-| Cursor | Yes | Yes | — | Yes | Yes | Project | IDE and Agent |
-| Codex | Yes | Prompts | — | Yes | — | User | Yes |
-| Kiro IDE | — | — | — | — | Yes | — | — |
+| Cursor | Yes | Yes | Yes | Yes | Yes | Project | IDE and Agent |
+| Codex | Yes | Prompts | Yes | Yes | — | User | Yes |
 
 Destination matrix:
 
@@ -38,7 +37,7 @@ Destination matrix:
 |-------------|------------------|
 | Skills | `skills/<name>/`, including scripts and assets |
 | Commands and Codex prompts | `skills/<name>/SKILL.md` |
-| Claude Code sub-agents | `agents/<name>.md` |
+| Claude Code, Cursor, and Codex agents | `agents/<name>.json` with prompt, tools, restrictions, skills, MCP, hooks, and supported model settings |
 | MCP server definitions | `settings/mcp.json` |
 | Claude Code, Cursor, and Kiro IDE hooks | `hooks/<name>.json` for kiro-cli V3 |
 | Source rules | `steering/<name>.md` |
@@ -172,12 +171,15 @@ Run the same MCP tools without an agent:
 npx -y github:irshadc/kiro-migration-assistant call scan_sources '{"workspace":"/absolute/project/path"}'
 ```
 
-Writing tools preview by default. See [ARCHITECTURE.md](ARCHITECTURE.md#mcp-tools) for every tool.
+Writing tools preview by default. In Windows PowerShell, write each `"` inside the JSON as `\"`. See [ARCHITECTURE.md](ARCHITECTURE.md#mcp-tools) for every tool.
+
+KMA reads each tool's default folder, or `CLAUDE_CONFIG_DIR` and `CODEX_HOME` when set. For another location, give the path during the guided flow.
 
 ## Test
 
 ```bash
 npm test
+npm run test:windows   # or test:macos, test:linux: native checks for this OS
 npm run test:e2e
 ```
 
@@ -186,7 +188,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md#testing-strategy) for coverage and isolati
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): design, tools, data flow, and tests
-- [DEPLOYMENT.md](DEPLOYMENT.md): requirements, setup, and verification
 - [SKILL.md](skills/kiro-migration-assistant/SKILL.md): agent workflow
 
 ## License

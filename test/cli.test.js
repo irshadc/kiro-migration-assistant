@@ -5,14 +5,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { install, PACKAGE_SPEC, SERVER_NAME } from '../src/install.js';
-import { makeFixture } from './helpers/fixtures.js';
+import { install, SERVER_NAME, serverEntry } from '../src/install.js';
+import { fixtureEnv, makeFixture } from './helpers/fixtures.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 
 const run = (fx, args) => spawnSync(process.execPath, [CLI, ...args], {
   encoding: 'utf-8',
-  env: { PATH: process.env.PATH, HOME: fx.home, KMA_CURSOR_USER_DIR: path.join(fx.home, 'CursorUser') },
+  env: fixtureEnv(fx.home),
 });
 
 test('install registers the server, keeps other servers, copies the skill, and is idempotent', (t) => {
@@ -27,7 +27,7 @@ test('install registers the server, keeps other servers, copies the skill, and i
   assert.ok(fs.existsSync(`${mcpFile}.kma-backup-1`), 'previous mcp.json backed up');
   const servers = JSON.parse(fs.readFileSync(mcpFile, 'utf-8')).mcpServers;
   assert.deepEqual(servers.other, { command: 'x' });
-  assert.deepEqual(servers[SERVER_NAME], { command: 'npx', args: ['-y', PACKAGE_SPEC] });
+  assert.deepEqual(servers[SERVER_NAME], serverEntry(fx.roots.platform));
   assert.ok(fs.existsSync(path.join(fx.roots.kiro.dir, 'skills', SERVER_NAME, 'SKILL.md')));
 
   const second = install(fx.roots, { now: 2 });
@@ -49,7 +49,7 @@ test('cli call runs a tool once and prints JSON', (t) => {
   const fx = makeFixture();
   t.after(fx.cleanup);
   const out = JSON.parse(execFileSync(process.execPath, [CLI, 'call', 'list_sessions', '{"sources":["codex"]}'], {
-    encoding: 'utf-8', env: { PATH: process.env.PATH, HOME: fx.home },
+    encoding: 'utf-8', env: fixtureEnv(fx.home),
   }));
   assert.equal(out.sessions[0].id, 'cdx1');
   const imported = JSON.parse(run(fx, ['call', 'import_sessions', JSON.stringify({ all: true, limit: 5, fallbackCwd: fx.ws, dryRun: false })]).stdout);

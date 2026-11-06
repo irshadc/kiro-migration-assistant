@@ -30,12 +30,37 @@ export function readJson(p, fallback = undefined) {
   }
 }
 
+// Windows refuses to replace a file another process (Kiro, an editor, antivirus)
+// briefly holds open. Those codes are transient there, so the rename is retried.
+const TRANSIENT_RENAME_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const RENAME_ATTEMPTS = 6;
+const RENAME_BASE_DELAY_MS = 20;
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** renameSync with exponential backoff on transient lock errors. `rename` is injectable for tests. */
+export function renameWithRetry(from, to, { rename = fs.renameSync, sleep = sleepSync } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try { return rename(from, to); } catch (err) {
+      if (!TRANSIENT_RENAME_CODES.has(err.code) || attempt === RENAME_ATTEMPTS) {
+        throw new Error(`Cannot replace ${to} (${err.code}) after ${attempt} attempt(s); close any program holding it open and retry`, { cause: err });
+      }
+      sleep(RENAME_BASE_DELAY_MS * 2 ** (attempt - 1));
+    }
+  }
+}
+
 /** Write via temp file + rename so a crash never leaves a half-written target. */
 export function writeAtomic(p, content) {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   const tmp = `${p}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
   fs.writeFileSync(tmp, content);
-  fs.renameSync(tmp, p);
+  try { renameWithRetry(tmp, p); } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
 }
 
 export function writeJsonAtomic(p, value) {
