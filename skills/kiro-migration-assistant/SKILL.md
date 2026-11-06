@@ -39,10 +39,10 @@ Do not silently turn guided mode into fast mode.
 
 1. Check `node --version`; Node.js 22.13 or newer is required. `npx` comes with Node.js.
 2. If the MCP tools are loaded, use them.
-3. Otherwise run `npx -y github:irshadc/kiro-migration-assistant#v0.7.0 install`. In the current session, call tools with:
+3. Otherwise run `npx -y github:irshadc/kiro-migration-assistant#v0.7.1 install`. In the current session, call tools with:
 
 ```bash
-npx -y github:irshadc/kiro-migration-assistant#v0.7.0 call <tool> '<json args>'
+npx -y github:irshadc/kiro-migration-assistant#v0.7.1 call <tool> '<json args>'
 ```
 
 On Windows PowerShell, write each `"` inside the JSON as `\"`.
@@ -148,13 +148,15 @@ Report written files and backups briefly. For every written agent JSON file, run
 
 Call `list_sessions` for the selected session sources with `limit:20`. Use `cwd:workspace` only when the user asked for this project's sessions.
 
+The list holds only sessions a person started. Kiro Crew background jobs and empty stubs are hidden. When `hiddenBackground` or `hiddenEmpty` is above zero, say how many were hidden in one line. Call again with `includeBackground:true` only if the user asks to see them.
+
 Present one session only:
 
 - Title.
 - Source.
 - Project folder.
 - Last update.
-- Recommendation, including whether it looks like background work or a failed session.
+- Recommendation, including whether it looks like a failed session.
 
 Ask: import, skip, or stop reviewing sessions? Then stop.
 

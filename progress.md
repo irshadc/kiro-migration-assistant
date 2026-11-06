@@ -94,3 +94,9 @@ config and sessions into Kiro (V3 session store only).
 - [x] Unsafe source permission modes never become Kiro grants; unsupported fields produce warnings.
 - [x] Added exact `yaml` 2.9.1 and `smol-toml` 1.9.1 parsers; `npm audit --omit=dev` reports zero vulnerabilities.
 - [x] Verified: 76/76 unit and protocol tests; 8/8 integration tests; all six generated source agents pass `kiro-cli agent validate`.
+
+## v0.7.1: hide background and empty Claude Code sessions (2026-11-06)
+- [x] Claude Code sessions in `kirocrew-workspace/_*` folders, sessions opening with a known Kiro Crew job prompt, and files with no messages are hidden by default.
+- [x] `entrypoint: cli` sessions are always kept; the filter runs before the limit, so a full page of human sessions is returned.
+- [x] `list_sessions`, `scan_sources` counts and `import_sessions all:true` apply the filter; import by ID and `handoff_session` do not. `includeBackground: true` opts back in; results report `hiddenBackground` and `hiddenEmpty`.
+- [x] Titles skip `<local-command-...>` text.

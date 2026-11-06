@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { resolveRoots } from './roots.js';
 import { registerTools } from './tools.js';
 
-export const SERVER_INFO = { name: 'kiro-migration-assistant', version: '0.7.0' };
+export const SERVER_INFO = { name: 'kiro-migration-assistant', version: '0.7.1' };
 
 export function createServer({ roots = resolveRoots() } = {}) {
   const server = new McpServer(SERVER_INFO);

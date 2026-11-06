@@ -59,7 +59,7 @@ Paste this into Kiro:
 
 ```text
 Install Kiro Migration Assistant for all my Kiro projects:
-npx -y github:irshadc/kiro-migration-assistant#v0.7.0 install
+npx -y github:irshadc/kiro-migration-assistant#v0.7.1 install
 Confirm the skill is in ~/.kiro/skills/kiro-migration-assistant/ and the MCP server is registered.
 Load the installed skill and guide this project migration step by step:
 1. Ask which source tool to use, then show its global and project items.
@@ -106,7 +106,7 @@ KMA requires Node.js 22.13 or newer. `npm` and `npx` come with Node.js.
 
 ```bash
 node --version
-npx -y github:irshadc/kiro-migration-assistant#v0.7.0 install
+npx -y github:irshadc/kiro-migration-assistant#v0.7.1 install
 cd /absolute/path/to/your-project
 kiro-cli chat --v3
 ```
@@ -168,7 +168,7 @@ kiro-cli chat --v3 --no-interactive "kma: preview all; change nothing"
 Run the same MCP tools without an agent:
 
 ```bash
-npx -y github:irshadc/kiro-migration-assistant#v0.7.0 call scan_sources '{"workspace":"/absolute/project/path"}'
+npx -y github:irshadc/kiro-migration-assistant#v0.7.1 call scan_sources '{"workspace":"/absolute/project/path"}'
 ```
 
 Writing tools preview by default. In Windows PowerShell, write each `"` inside the JSON as `\"`. See [ARCHITECTURE.md](ARCHITECTURE.md#mcp-tools) for every tool.

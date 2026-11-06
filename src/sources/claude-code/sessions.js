@@ -12,6 +12,25 @@ export const SOURCE = 'claude-code';
 const PEEK_LINES = 40;
 const TITLE_MAX = 120;
 
+// Kiro Crew runs its background passes (memory consolidation, session naming,
+// prompt suggestions) through the Claude Code SDK from internal folders named
+// kirocrew-workspace/_<job>. '_' encodes to '-', so the project dir holds '--'.
+const BACKGROUND_PROJECT_DIR = /kirocrew-workspace--/;
+const BACKGROUND_CWD = /kirocrew-workspace[\\/]_/;
+// Fallback for job sessions outside those folders; update if Kiro Crew rewords them.
+const BACKGROUND_PROMPTS = [
+  'You are a memory consolidation agent',
+  'You are a session naming agent',
+  'You are generating contextual prompt suggestions',
+];
+// A typed `claude` session; SDK sessions ('sdk-ts') can be either kind.
+const HUMAN_ENTRYPOINT = 'cli';
+const CONVERSATION_TYPES = new Set(['user', 'assistant']);
+
+export function isBackgroundProjectDir(projectDir) {
+  return BACKGROUND_PROJECT_DIR.test(projectDir);
+}
+
 /** Claude encodes a project cwd by replacing every non-alphanumeric char with '-'. */
 export function encodeProjectDir(cwd) {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-');
@@ -35,13 +54,12 @@ function firstUserText(records) {
     const text = cleanUserText(contentToText(
       Array.isArray(r.message?.content) ? r.message.content.filter((c) => c.type === 'text') : r.message?.content,
     ));
-    if (text && !text.startsWith('<command-')) return text;
+    if (text && !text.startsWith('<command-') && !text.startsWith('<local-command-')) return text;
   }
   return null;
 }
 
-async function describe(entry) {
-  const head = await peekJsonl(entry.file, PEEK_LINES);
+function metaFrom(entry, head) {
   const cwd = head.find((r) => r.cwd)?.cwd || null;
   const summary = head.find((r) => r.type === 'summary' && r.summary)?.summary;
   const firstTs = head.find((r) => r.timestamp)?.timestamp;
@@ -57,8 +75,31 @@ async function describe(entry) {
   };
 }
 
-/** List sessions newest first. Stats every file but only parses the `limit` newest. */
-export async function listSessions(roots, { cwd, limit = 50 } = {}) {
+async function describe(entry) {
+  return metaFrom(entry, await peekJsonl(entry.file, PEEK_LINES));
+}
+
+/**
+ * 'human', 'background' (a Kiro Crew job) or 'empty' (no conversation at all).
+ * `head` is the first PEEK_LINES records of the file.
+ */
+export function classifySession(head, cwd) {
+  const hasConversation = head.some((r) => CONVERSATION_TYPES.has(r.type) && r.message);
+  // Only a file shorter than the peek is known to hold no conversation.
+  if (!hasConversation && head.length < PEEK_LINES) return 'empty';
+  if (head.find((r) => r.entrypoint)?.entrypoint === HUMAN_ENTRYPOINT) return 'human';
+  if (cwd && BACKGROUND_CWD.test(cwd)) return 'background';
+  const first = firstUserText(head);
+  if (first && BACKGROUND_PROMPTS.some((p) => first.startsWith(p))) return 'background';
+  return 'human';
+}
+
+/**
+ * Sessions newest first, plus how many were hidden. Kiro Crew background jobs
+ * and empty stubs are hidden unless includeBackground is true. Stats every file
+ * but parses only as many as it takes to fill `limit`.
+ */
+export async function listSessionsWithHidden(roots, { cwd, limit = 50, includeBackground = false } = {}) {
   let entries = sessionFiles(roots).map((e) => ({ ...e, mtime: mtimeMs(e.file) }));
   if (cwd) {
     // Normalizing first makes the Windows match case-insensitive (it lowercases) and ignores a trailing slash.
@@ -67,7 +108,36 @@ export async function listSessions(roots, { cwd, limit = 50 } = {}) {
     entries = entries.filter((e) => key(e.projectDir) === encoded);
   }
   entries.sort((a, b) => b.mtime - a.mtime);
-  return Promise.all(entries.slice(0, limit).map(describe));
+  if (includeBackground) {
+    return { sessions: await Promise.all(entries.slice(0, limit).map(describe)), hidden: { background: 0, empty: 0 } };
+  }
+  // Folder matches are known from the name alone, so they never cost a read.
+  const hidden = { background: 0, empty: 0 };
+  const candidates = entries.filter((e) => {
+    if (!isBackgroundProjectDir(e.projectDir)) return true;
+    hidden.background++;
+    return false;
+  });
+  const sessions = [];
+  let next = 0;
+  while (sessions.length < limit && next < candidates.length) {
+    const batch = candidates.slice(next, next + limit - sessions.length);
+    next += batch.length;
+    const read = await Promise.all(batch.map(async (e) => {
+      const head = await peekJsonl(e.file, PEEK_LINES);
+      const meta = metaFrom(e, head);
+      return { meta, kind: classifySession(head, meta.cwd) };
+    }));
+    for (const { meta, kind } of read) {
+      if (kind === 'human') sessions.push(meta);
+      else hidden[kind]++;
+    }
+  }
+  return { sessions, hidden };
+}
+
+export async function listSessions(roots, options) {
+  return (await listSessionsWithHidden(roots, options)).sessions;
 }
 
 export function findSessionFile(roots, id) {

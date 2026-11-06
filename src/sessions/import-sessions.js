@@ -9,16 +9,33 @@ import { fitBudget, toMs, toTurns } from './transcript.js';
 export const DEFAULT_MAX_CHARS = 400_000;
 const TITLE_MAX = 120;
 
-export async function listAllSessions(roots, { sources = DEFAULT_SESSION_SOURCES, cwd, limit = 20 } = {}) {
+/**
+ * One source's sessions plus what it hid. Only Claude Code hides sessions
+ * (Kiro Crew background jobs, empty stubs); other sources report none.
+ */
+export async function listSourceSessions(roots, name, options) {
+  const src = sessionSource(name);
+  if (src.listSessionsWithHidden) return src.listSessionsWithHidden(roots, options);
+  return { sessions: await src.listSessions(roots, options), hidden: { background: 0, empty: 0 } };
+}
+
+export async function listAllSessions(roots, { sources = DEFAULT_SESSION_SOURCES, cwd, limit = 20, includeBackground = false } = {}) {
   const all = [];
   const errors = [];
+  let hiddenBackground = 0;
+  let hiddenEmpty = 0;
   for (const name of sources) {
-    try { all.push(...await sessionSource(name).listSessions(roots, { cwd, limit })); } catch (err) {
+    try {
+      const { sessions, hidden } = await listSourceSessions(roots, name, { cwd, limit, includeBackground });
+      all.push(...sessions);
+      hiddenBackground += hidden.background;
+      hiddenEmpty += hidden.empty;
+    } catch (err) {
       errors.push({ source: name, error: err.message });
     }
   }
   all.sort((a, b) => (toMs(b.updatedAt) || 0) - (toMs(a.updatedAt) || 0));
-  return { sessions: all.slice(0, limit), errors };
+  return { sessions: all.slice(0, limit), errors, hiddenBackground, hiddenEmpty };
 }
 
 /** The terminal command that resumes `kiroId` from `cwd`, in the user's default shell. */
@@ -81,12 +98,12 @@ export async function importSession(roots, { source, id, cwd, fallbackCwd, maxCh
  * Import many: explicit ids from one source, or with all=true the newest
  * `limit` sessions (from `source`, or across every source when it is omitted).
  */
-export async function importSessions(roots, { source, ids, all = false, cwd, fallbackCwd, limit = 20, maxChars, fork, dryRun }) {
+export async function importSessions(roots, { source, ids, all = false, cwd, fallbackCwd, limit = 20, includeBackground = false, maxChars, fork, dryRun }) {
   let targets;
   if (all) {
     const listed = source
-      ? await sessionSource(source).listSessions(roots, { cwd, limit })
-      : (await listAllSessions(roots, { cwd, limit })).sessions;
+      ? (await listSourceSessions(roots, source, { cwd, limit, includeBackground })).sessions
+      : (await listAllSessions(roots, { cwd, limit, includeBackground })).sessions;
     targets = listed.map((s) => ({ source: s.source, id: s.id }));
   } else {
     if (ids?.length && !source) throw new Error('source is required when importing by ids');
@@ -109,7 +126,8 @@ export async function importSessions(roots, { source, ids, all = false, cwd, fal
 export async function handoffSession(roots, { source, id, cwd, fallbackCwd, maxChars, fork }) {
   let sessionId = id;
   if (!sessionId) {
-    const [latest] = await sessionSource(source).listSessions(roots, { cwd, limit: 1 });
+    // Unfiltered: the caller named this folder, so take whatever ran there last.
+    const [latest] = await sessionSource(source).listSessions(roots, { cwd, limit: 1, includeBackground: true });
     if (!latest) throw new Error(`no ${source} session found${cwd ? ` for ${cwd}` : ''}`);
     sessionId = latest.id;
   }

@@ -3,8 +3,8 @@
 import { z } from 'zod';
 import { CONFIG_KINDS, CONFIG_SCOPES, applyConfigPlan, discover, planConfigMigration, publicEntry, summarize } from './config/migrate-config.js';
 import { kiroInventory } from './config/kiro-inventory.js';
-import { DEFAULT_MAX_CHARS, handoffSession, importSessions, listAllSessions } from './sessions/import-sessions.js';
-import { CONFIG_SOURCES, DEFAULT_CONFIG_SOURCES, DEFAULT_SESSION_SOURCES, SESSION_SOURCES, UPGRADE_CONFIG_SOURCES, sessionSource } from './sources/index.js';
+import { DEFAULT_MAX_CHARS, handoffSession, importSessions, listAllSessions, listSourceSessions } from './sessions/import-sessions.js';
+import { CONFIG_SOURCES, DEFAULT_CONFIG_SOURCES, DEFAULT_SESSION_SOURCES, SESSION_SOURCES, UPGRADE_CONFIG_SOURCES } from './sources/index.js';
 import { SOURCE_PATH_KEYS, sourceLocations, sourceLocationsByScope, withSourcePaths } from './roots.js';
 
 const sourcePaths = z.object(Object.fromEntries(SOURCE_PATH_KEYS.map((key) => [key, z.string().min(1).optional()]))).strict().optional()
@@ -20,6 +20,8 @@ const maxChars = z.number().int().min(10_000).max(4_000_000).optional()
   .describe(`Character budget per imported session; older turns beyond it are dropped. Default ${DEFAULT_MAX_CHARS}.`);
 const fallbackCwd = z.string().optional()
   .describe('Absolute folder to file a session under when the source recorded none (some Cursor Agent chats). Pass the current project path: Kiro lists sessions per folder, and a session with no folder is resumable only by id.');
+const includeBackground = z.boolean().default(false)
+  .describe('Also include Kiro Crew background jobs (memory consolidation, session naming, prompt suggestions) and empty Claude Code stubs. Default false: only sessions a person started. Set true only when the user asks.');
 
 const asResult = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] });
 
@@ -49,10 +51,11 @@ async function sessionSummary(roots, names) {
   const out = {};
   for (const name of names) {
     try {
-      const listed = await sessionSource(name).listSessions(roots, { limit: SESSION_COUNT_CAP });
+      const { sessions: listed, hidden } = await listSourceSessions(roots, name, { limit: SESSION_COUNT_CAP });
+      const hiddenCounts = { ...(hidden.background ? { hiddenBackground: hidden.background } : {}), ...(hidden.empty ? { hiddenEmpty: hidden.empty } : {}) };
       out[name] = listed.length
-        ? { found: true, count: listed.length, ...(listed.length === SESSION_COUNT_CAP ? { countIsAtLeast: true } : {}), newest: listed[0] }
-        : { found: false, count: 0 };
+        ? { found: true, count: listed.length, ...(listed.length === SESSION_COUNT_CAP ? { countIsAtLeast: true } : {}), newest: listed[0], ...hiddenCounts }
+        : { found: false, count: 0, ...hiddenCounts };
     } catch (err) {
       out[name] = { found: false, count: 0, error: err.message };
     }
@@ -106,11 +109,12 @@ const BASE_TOOLS = [
   }, migrateConfig],
   ['list_sessions', {
     title: 'List sessions',
-    description: 'List sessions from other agents, newest first, with ids, titles and working directories.',
+    description: 'List sessions from other agents, newest first, with ids, titles and working directories. Kiro Crew background jobs and empty stubs are hidden by default; `hiddenBackground` and `hiddenEmpty` report how many.',
     inputSchema: {
       sources: z.array(sessionSourceName).optional(),
       cwd: z.string().optional().describe('Only sessions whose working directory is this absolute path.'),
       limit: z.number().int().min(1).max(500).default(20),
+      includeBackground,
     },
     annotations: { readOnlyHint: true },
   }, (roots, args) => listAllSessions(roots, args)],
@@ -124,6 +128,7 @@ const BASE_TOOLS = [
       cwd: z.string().optional().describe('With all=true: only sessions from this directory.'),
       fallbackCwd,
       limit: z.number().int().min(1).max(500).default(20),
+      includeBackground: includeBackground.describe('With all=true: also import Kiro Crew background jobs and empty stubs. Default false. Import by ids is never filtered.'),
       maxChars,
       fork: z.boolean().default(false),
       dryRun: z.boolean().default(true),
