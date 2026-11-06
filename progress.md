@@ -62,3 +62,9 @@ config and sessions into Kiro (V3 session store only).
 - [x] `scan_sources` returns `locations` (folders read + exists). Skill step 1 shows "Reading from", asks about tools not found, and offers a different path.
 - [x] Every tool accepts optional `paths` (`claudeDir`, `claudeJson`, `cursorDir`, `cursorUserDir`, `codexDir`; absolute or `~/`); Kiro target unchanged. Env vars still work.
 - [x] Tests: 60 unit (3 new in test/source-paths.test.js), 5 e2e (new: `kma:` prompt with a relocated Claude folder).
+
+## Documentation rewrite: manual setup and testing (2026-11-06)
+- [x] Rewrote README in plain language (177 lines): capabilities, short prompts, automatic setup, manual skill + MCP setup, CLI mode.
+- [x] Rewrote DEPLOYMENT.md (125 lines): requirements, source paths, automatic/manual setup, verification.
+- [x] Simplified ARCHITECTURE.md and added a testing strategy: 60 unit/protocol tests, 5 real kiro-cli integration tests, coverage map, isolation, release checks, and current gaps (no percentage threshold or CI).
+- [x] Verified: 60/60 unit and protocol tests; 5/5 integration tests; no added real Kiro session buckets/indexes; `git diff --check` clean.
